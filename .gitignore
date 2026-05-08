@@ -37,8 +37,8 @@ Thumbs.db
 logs/
 *.log
 
-# Build artifacts
-build/
+# Build artifacts (project root only; not Go internal/build packages)
+/build/
 target/
 *.o
 *.a
