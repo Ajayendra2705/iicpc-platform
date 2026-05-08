@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package iicpc.leaderboard.v1;
+
+option go_package = "github.com/iicpc/platform/proto/leaderboard/v1;leaderboardv1";
+
+import "google/protobuf/timestamp.proto";
+
+service Leaderboard {
+  rpc GetTopN(GetTopNRequest) returns (GetTopNResponse);
+  rpc GetContestantScore(GetContestantScoreRequest) returns (ScoreEntry);
+  rpc StreamUpdates(StreamUpdatesRequest) returns (stream ScoreUpdate);
+  rpc SubmitScore(SubmitScoreRequest) returns (SubmitScoreResponse);
+}
+
+message ScoreEntry {
+  string contestant_id = 1;
+  string display_name = 2;
+  string language = 3;
+  double composite_score = 4;
+  int64 latency_p99_ns = 5;
+  double tps = 6;
+  double fill_accuracy = 7;
+  int32 crashes = 8;
+  int32 rank = 9;
+  google.protobuf.Timestamp last_updated = 10;
+}
+
+message GetTopNRequest {
+  int32 n = 1;
+}
+
+message GetTopNResponse {
+  repeated ScoreEntry entries = 1;
+}
+
+message GetContestantScoreRequest {
+  string contestant_id = 1;
+}
+
+message StreamUpdatesRequest {
+  // empty: subscribe to all updates
+}
+
+message ScoreUpdate {
+  ScoreEntry entry = 1;
+  int32 previous_rank = 2;
+}
+
+message SubmitScoreRequest {
+  string contestant_id = 1;
+  double composite_score = 2;
+  int64 latency_p99_ns = 3;
+  double tps = 4;
+  double fill_accuracy = 5;
+  int32 crashes = 6;
+}
+
+message SubmitScoreResponse {
+  int32 new_rank = 1;
+}

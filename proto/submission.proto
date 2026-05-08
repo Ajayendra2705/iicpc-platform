@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package iicpc.submission.v1;
+
+option go_package = "github.com/iicpc/platform/proto/submission/v1;submissionv1";
+
+import "google/protobuf/timestamp.proto";
+
+service SubmissionService {
+  rpc CreateSubmission(CreateSubmissionRequest) returns (CreateSubmissionResponse);
+  rpc GetSubmission(GetSubmissionRequest) returns (Submission);
+  rpc ListSubmissions(ListSubmissionsRequest) returns (ListSubmissionsResponse);
+  rpc StreamBuildLogs(StreamBuildLogsRequest) returns (stream BuildLogChunk);
+}
+
+enum Language {
+  LANGUAGE_UNSPECIFIED = 0;
+  LANGUAGE_CPP = 1;
+  LANGUAGE_RUST = 2;
+  LANGUAGE_GO = 3;
+}
+
+enum SubmissionStatus {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_UPLOADED = 1;
+  STATUS_BUILDING = 2;
+  STATUS_BUILD_FAILED = 3;
+  STATUS_READY = 4;
+  STATUS_RUNNING = 5;
+  STATUS_COMPLETED = 6;
+  STATUS_CRASHED = 7;
+}
+
+message Submission {
+  string id = 1;
+  string contestant_id = 2;
+  Language language = 3;
+  SubmissionStatus status = 4;
+  string source_uri = 5;       // MinIO/S3 path to source archive
+  string image_uri = 6;        // built container image ref
+  string entrypoint = 7;       // e.g. "/app/orderbook"
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  string build_error = 10;
+}
+
+message CreateSubmissionRequest {
+  string contestant_id = 1;
+  Language language = 2;
+  bytes archive = 3;           // tar.gz of source
+  string entrypoint = 4;
+}
+
+message CreateSubmissionResponse {
+  string submission_id = 1;
+  SubmissionStatus status = 2;
+}
+
+message GetSubmissionRequest {
+  string submission_id = 1;
+}
+
+message ListSubmissionsRequest {
+  string contestant_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListSubmissionsResponse {
+  repeated Submission submissions = 1;
+  string next_page_token = 2;
+}
+
+message StreamBuildLogsRequest {
+  string submission_id = 1;
+}
+
+message BuildLogChunk {
+  string submission_id = 1;
+  string line = 2;
+  google.protobuf.Timestamp ts = 3;
+}

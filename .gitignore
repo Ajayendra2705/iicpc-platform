@@ -1,0 +1,69 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Go
+*.test
+*.out
+vendor/
+go.sum.tmp
+
+# Node
+node_modules/
+.next/
+out/
+.turbo/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Build artifacts
+build/
+target/
+*.o
+*.a
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!example.tfvars
+
+# K8s
+kubeconfig
+*.kubeconfig
+
+# Generated proto
+*.pb.go
+*_grpc.pb.go
+
+# Local data
+data/
+minio-data/
+redpanda-data/
+postgres-data/
+redis-data/
+
+# Reference materials (kept locally, not in repo)
+*.pdf

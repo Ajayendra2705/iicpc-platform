@@ -1,0 +1,36 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: iicpc
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30090
+        hostPort: 9090
+        protocol: TCP
+      - containerPort: 30030
+        hostPort: 3000
+        protocol: TCP
+  - role: worker
+    labels:
+      iicpc.io/pool: services
+  - role: worker
+    labels:
+      iicpc.io/pool: contestants
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          taints:
+            - key: iicpc.io/contestants
+              value: "true"
+              effect: NoSchedule
+  - role: worker
+    labels:
+      iicpc.io/pool: bots
+networking:
+  disableDefaultCNI: false
+  podSubnet: "10.244.0.0/16"
+  serviceSubnet: "10.96.0.0/12"
