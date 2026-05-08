@@ -54,9 +54,9 @@ target/
 kubeconfig
 *.kubeconfig
 
-# Generated proto
-*.pb.go
-*_grpc.pb.go
+# Generated proto: keep checked in so consumers don't need protoc/buf to build.
+# Regenerate via `make proto`.
+
 
 # Local data
 data/

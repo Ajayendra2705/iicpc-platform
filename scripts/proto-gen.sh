@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Regenerate Go bindings from .proto files.
-# Requires: protoc, protoc-gen-go, protoc-gen-go-grpc
+# Regenerate Go bindings from .proto files using buf.
+# Requires: buf, protoc-gen-go, protoc-gen-go-grpc on PATH.
+# Install:
+#   go install github.com/bufbuild/buf/cmd/buf@latest
+#   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+#   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 cd "$(dirname "$0")/.."
 
-OUT_BASE="proto"
+if ! command -v buf >/dev/null 2>&1; then
+  echo "buf not found on PATH. Install: go install github.com/bufbuild/buf/cmd/buf@latest" >&2
+  exit 1
+fi
 
-for proto in proto/*.proto; do
-  echo "Generating: ${proto}"
-  protoc \
-    --go_out=. --go_opt=module=github.com/iicpc/platform \
-    --go-grpc_out=. --go-grpc_opt=module=github.com/iicpc/platform \
-    "${proto}"
-done
+echo "Generating Go protobuf bindings..."
+buf generate
 
-echo "Done. Generated .pb.go files are gitignored; run this on each clone."
+echo "Done. Output under proto/gen/go/"

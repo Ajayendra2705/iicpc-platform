@@ -1,6 +1,7 @@
 go 1.22
 
 use (
+	./proto/gen/go
 	./services/aggregator
 	./services/api-gateway
 	./services/bot-coordinator

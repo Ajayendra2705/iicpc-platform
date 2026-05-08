@@ -1,21 +1,22 @@
 # syntax=docker/dockerfile:1.7
 # Sandbox base image for Rust contestant submissions.
-# Convention: contestant source has Cargo.toml at root, single [[bin]] target.
+# Convention: contestant source has Cargo.toml at root.
 
 FROM rust:1.80-slim-bookworm AS build
-ARG ENTRYPOINT_PATH=/app/main
 WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
-    cargo build --release && \
-    cp $(find target/release -maxdepth 1 -type f -executable ! -name '*.so' | head -n1) /out-main
-# /out-main is staged outside cache mount so it survives.
+    cargo build --release --message-format=json > /tmp/cargo.json && \
+    BIN=$(awk '/"reason":"compiler-artifact"/ && /"executable":"[^"]+"/' /tmp/cargo.json | \
+          sed -nE 's/.*"executable":"([^"]+)".*/\1/p' | tail -n1) && \
+    test -n "$BIN" && cp "$BIN" /out-main
 
 FROM gcr.io/distroless/cc-debian12:nonroot
 ARG ENTRYPOINT_PATH=/app/main
+ARG RUNTIME_PORT=9100
 COPY --from=build /out-main ${ENTRYPOINT_PATH}
 USER nonroot:nonroot
-EXPOSE 9100
-ENV ENTRYPOINT_PATH=${ENTRYPOINT_PATH}
+ENV RUNTIME_PORT=${RUNTIME_PORT}
+EXPOSE ${RUNTIME_PORT}
 ENTRYPOINT ["/app/main"]

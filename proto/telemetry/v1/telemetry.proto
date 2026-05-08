@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package iicpc.telemetry.v1;
 
-option go_package = "github.com/iicpc/platform/proto/telemetry/v1;telemetryv1";
+option go_package = "github.com/iicpc/platform/proto/gen/go/telemetry/v1;telemetryv1";
 
 service TelemetryIngester {
   // bot-worker streams every order ack timing here

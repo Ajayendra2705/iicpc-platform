@@ -1,10 +1,8 @@
 # syntax=docker/dockerfile:1.7
 # Sandbox base image for Go contestant submissions.
 # Convention: contestant source has go.mod at root.
-# Output binary path is configurable via ENTRYPOINT_PATH build arg.
 
 FROM golang:1.22-alpine AS build
-ARG ENTRYPOINT_PATH=/app/main
 WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/go-build \
@@ -14,8 +12,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM gcr.io/distroless/static-debian12:nonroot
 ARG ENTRYPOINT_PATH=/app/main
+ARG RUNTIME_PORT=9100
 COPY --from=build /out/main ${ENTRYPOINT_PATH}
 USER nonroot:nonroot
-EXPOSE 9100
-ENV ENTRYPOINT_PATH=${ENTRYPOINT_PATH}
+ENV RUNTIME_PORT=${RUNTIME_PORT}
+EXPOSE ${RUNTIME_PORT}
 ENTRYPOINT ["/app/main"]

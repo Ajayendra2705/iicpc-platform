@@ -1,11 +1,12 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/iicpc/platform/services/submission-svc/internal/build"
+	"github.com/iicpc/platform/services/submission-svc/internal/httpx"
 	"github.com/iicpc/platform/services/submission-svc/internal/storage"
 	"github.com/iicpc/platform/services/submission-svc/internal/store"
 	"github.com/iicpc/platform/services/submission-svc/internal/validation"
@@ -23,21 +25,33 @@ type Config struct {
 	Storage         storage.ObjectStore
 	Submissions     store.Repository
 	Builder         build.Builder
+	Logger          *slog.Logger
+	InternalToken   string
 }
 
 type Server struct {
-	cfg Config
-	mux *http.ServeMux
+	cfg     Config
+	mux     *http.ServeMux
+	handler http.Handler
+	log     *slog.Logger
 }
 
 func New(cfg Config) *Server {
-	s := &Server{cfg: cfg, mux: http.NewServeMux()}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+	s := &Server{cfg: cfg, mux: http.NewServeMux(), log: cfg.Logger.With("component", "http")}
 	s.routes()
+	s.handler = httpx.Chain(s.mux,
+		httpx.RequestID,
+		httpx.AccessLog(s.log),
+		httpx.InternalToken(cfg.InternalToken),
+	)
 	return s
 }
 
 func (s *Server) Handler() http.Handler {
-	return s.mux
+	return s.handler
 }
 
 func (s *Server) routes() {
@@ -86,6 +100,15 @@ func (s *Server) createSubmission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sniff first two bytes for gzip magic (1f 8b). Reject non-gzip uploads
+	// before we ever push them to object storage.
+	br := bufio.NewReader(file)
+	magic, err := br.Peek(2)
+	if err != nil || len(magic) < 2 || magic[0] != 0x1f || magic[1] != 0x8b {
+		writeError(w, http.StatusBadRequest, "archive must be gzip-compressed (.tar.gz)")
+		return
+	}
+
 	id := uuid.NewString()
 	now := time.Now().UTC()
 	key := fmt.Sprintf("%s/%s/source.tar.gz", contestantID, id)
@@ -93,9 +116,9 @@ func (s *Server) createSubmission(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
 
-	uri, err := s.cfg.Storage.Put(ctx, key, file, header.Size, "application/gzip")
+	uri, err := s.cfg.Storage.Put(ctx, key, br, header.Size, "application/gzip")
 	if err != nil {
-		log.Printf("storage put: %v", err)
+		s.log.Error("storage put", "request_id", httpx.RequestIDFrom(r.Context()), "err", err)
 		writeError(w, http.StatusInternalServerError, "upload failed")
 		return
 	}
@@ -111,12 +134,20 @@ func (s *Server) createSubmission(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:    now,
 	}
 	if err := s.cfg.Submissions.Create(sub); err != nil {
-		log.Printf("create submission: %v", err)
+		s.log.Error("create submission", "request_id", httpx.RequestIDFrom(r.Context()), "err", err)
 		writeError(w, http.StatusInternalServerError, "persist failed")
 		return
 	}
 
-	s.cfg.Builder.Enqueue(id)
+	if err := s.cfg.Builder.Enqueue(id); err != nil {
+		if errors.Is(err, build.ErrQueueFull) {
+			writeError(w, http.StatusServiceUnavailable, "build queue full, retry later")
+			return
+		}
+		s.log.Error("enqueue build", "request_id", httpx.RequestIDFrom(r.Context()), "err", err)
+		writeError(w, http.StatusInternalServerError, "enqueue failed")
+		return
+	}
 
 	writeJSON(w, http.StatusAccepted, sub)
 }
@@ -151,7 +182,5 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
-		log.Printf("encode response: %v", err)
-	}
+	_ = json.NewEncoder(w).Encode(body)
 }

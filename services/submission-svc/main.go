@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -19,6 +20,9 @@ import (
 )
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(logger)
+
 	cfg := loadConfig()
 
 	objStore, err := storage.NewMinIO(storage.Config{
@@ -30,19 +34,36 @@ func main() {
 		EnsureBucket: true,
 	})
 	if err != nil {
-		log.Fatalf("init object store: %v", err)
+		logger.Error("init object store", "err", err)
+		os.Exit(1)
 	}
 
-	repo := store.NewMemory()
+	repo, repoClose, err := newRepo(cfg, logger)
+	if err != nil {
+		logger.Error("init repository", "err", err)
+		os.Exit(1)
+	}
+	defer repoClose()
 
-	builder, builderRun := newBuilder(cfg, repo, objStore)
-	go builderRun(context.Background())
+	rootCtx, rootCancel := context.WithCancel(context.Background())
+	defer rootCancel()
+
+	builder, builderRun := newBuilder(cfg, repo, objStore, logger)
+
+	var workerWG sync.WaitGroup
+	workerWG.Add(1)
+	go func() {
+		defer workerWG.Done()
+		builderRun(rootCtx)
+	}()
 
 	srv := httpsrv.New(httpsrv.Config{
 		MaxArchiveBytes: cfg.maxArchiveBytes,
 		Storage:         objStore,
 		Submissions:     repo,
 		Builder:         builder,
+		Logger:          logger,
+		InternalToken:   cfg.internalToken,
 	})
 
 	httpServer := &http.Server{
@@ -52,9 +73,13 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("submission-svc listening on %s (builder=%s)", cfg.httpAddr, cfg.builderKind)
+		logger.Info("submission-svc listening",
+			"addr", cfg.httpAddr,
+			"builder", cfg.builderKind,
+			"store", cfg.storeKind)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("http server error: %v", err)
+			logger.Error("http server error", "err", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -62,29 +87,71 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
-	log.Println("shutting down")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	logger.Info("shutting down")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_ = httpServer.Shutdown(shutdownCtx)
+
+	// Cancel in-flight builds, then wait for the worker goroutine to exit.
+	rootCancel()
+	workerDone := make(chan struct{})
+	go func() {
+		workerWG.Wait()
+		close(workerDone)
+	}()
+	select {
+	case <-workerDone:
+	case <-shutdownCtx.Done():
+		logger.Warn("worker drain timed out")
+	}
 }
 
-func newBuilder(cfg config, repo store.Repository, objStore storage.ObjectStore) (build.Builder, func(context.Context)) {
+func newRepo(cfg config, log *slog.Logger) (store.Repository, func(), error) {
+	switch strings.ToLower(cfg.storeKind) {
+	case "postgres":
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		pg, err := store.NewPostgres(ctx, cfg.storeDSN)
+		if err != nil {
+			return nil, nil, err
+		}
+		log.Info("repository: postgres")
+		return pg, pg.Close, nil
+	case "memory", "":
+		log.Info("repository: memory (state lost on restart)")
+		return store.NewMemory(), func() {}, nil
+	default:
+		return nil, nil, errors.New("unknown STORE_KIND " + cfg.storeKind)
+	}
+}
+
+func newBuilder(cfg config, repo store.Repository, objStore storage.ObjectStore, log *slog.Logger) (build.Builder, func(context.Context)) {
 	switch strings.ToLower(cfg.builderKind) {
 	case "buildkit":
+		var scanner build.ImageScanner
+		if cfg.trivyEnabled {
+			scanner = build.NewTrivyScanner(log)
+			if scanner == nil {
+				log.Warn("TRIVY_ENABLED=true but trivy not on PATH; scanning disabled")
+			}
+		}
 		bk := build.NewBuildKit(build.BuildKitConfig{
 			Repo:            repo,
 			Storage:         objStore,
+			Logger:          log,
 			SandboxImageDir: cfg.sandboxImageDir,
 			RegistryAddr:    cfg.registryAddr,
 			ImageRepoPrefix: "contestants",
 			BuildTimeout:    cfg.buildTimeout,
+			Scanner:         scanner,
 		})
 		return bk, bk.Run
 	case "stub", "":
-		s := build.NewStub(repo)
+		s := build.NewStub(repo, log)
 		return s, s.Run
 	default:
-		log.Fatalf("unknown BUILDER_KIND %q (want stub|buildkit)", cfg.builderKind)
+		log.Error("unknown BUILDER_KIND", "value", cfg.builderKind)
+		os.Exit(1)
 		return nil, nil
 	}
 }
@@ -101,6 +168,10 @@ type config struct {
 	sandboxImageDir string
 	registryAddr    string
 	buildTimeout    time.Duration
+	storeKind       string
+	storeDSN        string
+	internalToken   string
+	trivyEnabled    bool
 }
 
 func loadConfig() config {
@@ -117,6 +188,10 @@ func loadConfig() config {
 		sandboxImageDir: defaultSandboxDir(),
 		registryAddr:    envOr("REGISTRY_ADDR", "localhost:5000"),
 		buildTimeout:    timeout,
+		storeKind:       envOr("STORE_KIND", "memory"),
+		storeDSN:        envOr("STORE_DSN", "postgres://iicpc:iicpc@localhost:5432/iicpc?sslmode=disable"),
+		internalToken:   os.Getenv("INTERNAL_TOKEN"),
+		trivyEnabled:    envOr("TRIVY_ENABLED", "false") == "true",
 	}
 }
 
@@ -124,8 +199,6 @@ func defaultSandboxDir() string {
 	if v := os.Getenv("SANDBOX_IMAGE_DIR"); v != "" {
 		return v
 	}
-	// When running `go run ./services/submission-svc` from the repo root, the
-	// CWD is the repo root, so the sandbox-images directory sits next to it.
 	if cwd, err := os.Getwd(); err == nil {
 		candidate := filepath.Join(cwd, "sandbox-images")
 		if _, err := os.Stat(candidate); err == nil {

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package iicpc.botcontrol.v1;
 
-option go_package = "github.com/iicpc/platform/proto/botcontrol/v1;botcontrolv1";
+option go_package = "github.com/iicpc/platform/proto/gen/go/botcontrol/v1;botcontrolv1";
 
 service BotCoordinator {
   rpc StartLoadTest(StartLoadTestRequest) returns (StartLoadTestResponse);

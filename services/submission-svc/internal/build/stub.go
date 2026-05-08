@@ -3,16 +3,18 @@ package build
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/iicpc/platform/services/submission-svc/internal/store"
 )
 
-// Stub builder. Day 3 will replace with real BuildKit invocation.
-// For now: simulate build delay, mark image URI, transition status.
+// Stub builder for local dev / tests without Docker. Day 3 introduces the
+// real BuildKit-driven implementation; this remains for fast iteration when
+// the Docker daemon isn't available.
 type Stub struct {
 	repo  store.Repository
+	log   *slog.Logger
 	queue chan job
 }
 
@@ -20,23 +22,28 @@ type job struct {
 	submissionID string
 }
 
-func NewStub(repo store.Repository) *Stub {
+func NewStub(repo store.Repository, log *slog.Logger) *Stub {
+	if log == nil {
+		log = slog.Default()
+	}
 	return &Stub{
 		repo:  repo,
+		log:   log.With("component", "build.stub"),
 		queue: make(chan job, 64),
 	}
 }
 
-func (s *Stub) Enqueue(submissionID string) {
+func (s *Stub) Enqueue(submissionID string) error {
 	select {
 	case s.queue <- job{submissionID: submissionID}:
+		return nil
 	default:
-		log.Printf("build queue full, dropping submission %s", submissionID)
+		return ErrQueueFull
 	}
 }
 
 func (s *Stub) Run(ctx context.Context) {
-	log.Println("build worker (stub) started")
+	s.log.Info("worker started")
 	for {
 		select {
 		case <-ctx.Done():
@@ -49,7 +56,7 @@ func (s *Stub) Run(ctx context.Context) {
 
 func (s *Stub) process(j job) {
 	if err := s.repo.UpdateStatus(j.submissionID, store.StatusBuilding, "", ""); err != nil {
-		log.Printf("update status building: %v", err)
+		s.log.Error("update status building", "submission_id", j.submissionID, "err", err)
 		return
 	}
 
@@ -57,8 +64,8 @@ func (s *Stub) process(j job) {
 
 	imageURI := fmt.Sprintf("registry.iicpc.local/contestants/%s:latest", j.submissionID)
 	if err := s.repo.UpdateStatus(j.submissionID, store.StatusReady, imageURI, ""); err != nil {
-		log.Printf("update status ready: %v", err)
+		s.log.Error("update status ready", "submission_id", j.submissionID, "err", err)
 		return
 	}
-	log.Printf("build complete (stub) for %s -> %s", j.submissionID, imageURI)
+	s.log.Info("build complete", "submission_id", j.submissionID, "image_uri", imageURI)
 }
