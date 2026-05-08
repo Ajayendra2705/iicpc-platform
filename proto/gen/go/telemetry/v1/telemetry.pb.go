@@ -137,8 +137,8 @@ type OrderEvent struct {
 	ContestantId   string                 `protobuf:"bytes,2,opt,name=contestant_id,json=contestantId,proto3" json:"contestant_id,omitempty"`
 	BotId          string                 `protobuf:"bytes,3,opt,name=bot_id,json=botId,proto3" json:"bot_id,omitempty"`
 	OrderId        string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	Type           OrderType              `protobuf:"varint,5,opt,name=type,proto3,enum=iicpc.telemetry.v1.OrderType" json:"type,omitempty"`
-	Result         OrderResult            `protobuf:"varint,6,opt,name=result,proto3,enum=iicpc.telemetry.v1.OrderResult" json:"result,omitempty"`
+	Type           OrderType              `protobuf:"varint,5,opt,name=type,proto3,enum=telemetry.v1.OrderType" json:"type,omitempty"`
+	Result         OrderResult            `protobuf:"varint,6,opt,name=result,proto3,enum=telemetry.v1.OrderResult" json:"result,omitempty"`
 	SentTsNs       int64                  `protobuf:"varint,7,opt,name=sent_ts_ns,json=sentTsNs,proto3" json:"sent_ts_ns,omitempty"`  // bot monotonic clock at send
 	AckTsNs        int64                  `protobuf:"varint,8,opt,name=ack_ts_ns,json=ackTsNs,proto3" json:"ack_ts_ns,omitempty"`     // bot monotonic clock at ack
 	LatencyNs      int64                  `protobuf:"varint,9,opt,name=latency_ns,json=latencyNs,proto3" json:"latency_ns,omitempty"` // ack_ts_ns - sent_ts_ns
@@ -539,15 +539,15 @@ var File_telemetry_v1_telemetry_proto protoreflect.FileDescriptor
 
 const file_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\n" +
-	"\x1ctelemetry/v1/telemetry.proto\x12\x12iicpc.telemetry.v1\"\xc3\x03\n" +
+	"\x1ctelemetry/v1/telemetry.proto\x12\ftelemetry.v1\"\xb7\x03\n" +
 	"\n" +
 	"OrderEvent\x12\x19\n" +
 	"\btrace_id\x18\x01 \x01(\tR\atraceId\x12#\n" +
 	"\rcontestant_id\x18\x02 \x01(\tR\fcontestantId\x12\x15\n" +
 	"\x06bot_id\x18\x03 \x01(\tR\x05botId\x12\x19\n" +
-	"\border_id\x18\x04 \x01(\tR\aorderId\x121\n" +
-	"\x04type\x18\x05 \x01(\x0e2\x1d.iicpc.telemetry.v1.OrderTypeR\x04type\x127\n" +
-	"\x06result\x18\x06 \x01(\x0e2\x1f.iicpc.telemetry.v1.OrderResultR\x06result\x12\x1c\n" +
+	"\border_id\x18\x04 \x01(\tR\aorderId\x12+\n" +
+	"\x04type\x18\x05 \x01(\x0e2\x17.telemetry.v1.OrderTypeR\x04type\x121\n" +
+	"\x06result\x18\x06 \x01(\x0e2\x19.telemetry.v1.OrderResultR\x06result\x12\x1c\n" +
 	"\n" +
 	"sent_ts_ns\x18\a \x01(\x03R\bsentTsNs\x12\x1a\n" +
 	"\tack_ts_ns\x18\b \x01(\x03R\aackTsNs\x12\x1d\n" +
@@ -568,10 +568,10 @@ const file_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\x06p50_ns\x18\x01 \x01(\x03R\x05p50Ns\x12\x15\n" +
 	"\x06p90_ns\x18\x02 \x01(\x03R\x05p90Ns\x12\x15\n" +
 	"\x06p99_ns\x18\x03 \x01(\x03R\x05p99Ns\x12\x17\n" +
-	"\ap999_ns\x18\x04 \x01(\x03R\x06p999Ns\"\x8f\x02\n" +
+	"\ap999_ns\x18\x04 \x01(\x03R\x06p999Ns\"\x89\x02\n" +
 	"\x14QueryMetricsResponse\x12#\n" +
-	"\rcontestant_id\x18\x01 \x01(\tR\fcontestantId\x12@\n" +
-	"\alatency\x18\x02 \x01(\v2&.iicpc.telemetry.v1.LatencyPercentilesR\alatency\x12\x10\n" +
+	"\rcontestant_id\x18\x01 \x01(\tR\fcontestantId\x12:\n" +
+	"\alatency\x18\x02 \x01(\v2 .telemetry.v1.LatencyPercentilesR\alatency\x12\x10\n" +
 	"\x03tps\x18\x03 \x01(\x01R\x03tps\x12#\n" +
 	"\rfill_accuracy\x18\x04 \x01(\x01R\ffillAccuracy\x12!\n" +
 	"\ftotal_orders\x18\x05 \x01(\x03R\vtotalOrders\x12\x1a\n" +
@@ -588,11 +588,11 @@ const file_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\x14ORDER_RESULT_PARTIAL\x10\x02\x12\x19\n" +
 	"\x15ORDER_RESULT_REJECTED\x10\x03\x12\x18\n" +
 	"\x14ORDER_RESULT_TIMEOUT\x10\x04\x12\x19\n" +
-	"\x15ORDER_RESULT_ACK_ONLY\x10\x052\xc7\x01\n" +
-	"\x11TelemetryIngester\x12O\n" +
-	"\fIngestStream\x12\x1e.iicpc.telemetry.v1.OrderEvent\x1a\x1d.iicpc.telemetry.v1.IngestAck(\x01\x12a\n" +
-	"\fQueryMetrics\x12'.iicpc.telemetry.v1.QueryMetricsRequest\x1a(.iicpc.telemetry.v1.QueryMetricsResponseB\xd3\x01\n" +
-	"\x16com.iicpc.telemetry.v1B\x0eTelemetryProtoP\x01Z?github.com/iicpc/platform/proto/gen/go/telemetry/v1;telemetryv1\xa2\x02\x03ITX\xaa\x02\x12Iicpc.Telemetry.V1\xca\x02\x12Iicpc\\Telemetry\\V1\xe2\x02\x1eIicpc\\Telemetry\\V1\\GPBMetadata\xea\x02\x14Iicpc::Telemetry::V1b\x06proto3"
+	"\x15ORDER_RESULT_ACK_ONLY\x10\x052\xaf\x01\n" +
+	"\x11TelemetryIngester\x12C\n" +
+	"\fIngestStream\x12\x18.telemetry.v1.OrderEvent\x1a\x17.telemetry.v1.IngestAck(\x01\x12U\n" +
+	"\fQueryMetrics\x12!.telemetry.v1.QueryMetricsRequest\x1a\".telemetry.v1.QueryMetricsResponseB\xb4\x01\n" +
+	"\x10com.telemetry.v1B\x0eTelemetryProtoP\x01Z?github.com/iicpc/platform/proto/gen/go/telemetry/v1;telemetryv1\xa2\x02\x03TXX\xaa\x02\fTelemetry.V1\xca\x02\fTelemetry\\V1\xe2\x02\x18Telemetry\\V1\\GPBMetadata\xea\x02\rTelemetry::V1b\x06proto3"
 
 var (
 	file_telemetry_v1_telemetry_proto_rawDescOnce sync.Once
@@ -609,22 +609,22 @@ func file_telemetry_v1_telemetry_proto_rawDescGZIP() []byte {
 var file_telemetry_v1_telemetry_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_telemetry_v1_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_telemetry_v1_telemetry_proto_goTypes = []any{
-	(OrderType)(0),               // 0: iicpc.telemetry.v1.OrderType
-	(OrderResult)(0),             // 1: iicpc.telemetry.v1.OrderResult
-	(*OrderEvent)(nil),           // 2: iicpc.telemetry.v1.OrderEvent
-	(*IngestAck)(nil),            // 3: iicpc.telemetry.v1.IngestAck
-	(*QueryMetricsRequest)(nil),  // 4: iicpc.telemetry.v1.QueryMetricsRequest
-	(*LatencyPercentiles)(nil),   // 5: iicpc.telemetry.v1.LatencyPercentiles
-	(*QueryMetricsResponse)(nil), // 6: iicpc.telemetry.v1.QueryMetricsResponse
+	(OrderType)(0),               // 0: telemetry.v1.OrderType
+	(OrderResult)(0),             // 1: telemetry.v1.OrderResult
+	(*OrderEvent)(nil),           // 2: telemetry.v1.OrderEvent
+	(*IngestAck)(nil),            // 3: telemetry.v1.IngestAck
+	(*QueryMetricsRequest)(nil),  // 4: telemetry.v1.QueryMetricsRequest
+	(*LatencyPercentiles)(nil),   // 5: telemetry.v1.LatencyPercentiles
+	(*QueryMetricsResponse)(nil), // 6: telemetry.v1.QueryMetricsResponse
 }
 var file_telemetry_v1_telemetry_proto_depIdxs = []int32{
-	0, // 0: iicpc.telemetry.v1.OrderEvent.type:type_name -> iicpc.telemetry.v1.OrderType
-	1, // 1: iicpc.telemetry.v1.OrderEvent.result:type_name -> iicpc.telemetry.v1.OrderResult
-	5, // 2: iicpc.telemetry.v1.QueryMetricsResponse.latency:type_name -> iicpc.telemetry.v1.LatencyPercentiles
-	2, // 3: iicpc.telemetry.v1.TelemetryIngester.IngestStream:input_type -> iicpc.telemetry.v1.OrderEvent
-	4, // 4: iicpc.telemetry.v1.TelemetryIngester.QueryMetrics:input_type -> iicpc.telemetry.v1.QueryMetricsRequest
-	3, // 5: iicpc.telemetry.v1.TelemetryIngester.IngestStream:output_type -> iicpc.telemetry.v1.IngestAck
-	6, // 6: iicpc.telemetry.v1.TelemetryIngester.QueryMetrics:output_type -> iicpc.telemetry.v1.QueryMetricsResponse
+	0, // 0: telemetry.v1.OrderEvent.type:type_name -> telemetry.v1.OrderType
+	1, // 1: telemetry.v1.OrderEvent.result:type_name -> telemetry.v1.OrderResult
+	5, // 2: telemetry.v1.QueryMetricsResponse.latency:type_name -> telemetry.v1.LatencyPercentiles
+	2, // 3: telemetry.v1.TelemetryIngester.IngestStream:input_type -> telemetry.v1.OrderEvent
+	4, // 4: telemetry.v1.TelemetryIngester.QueryMetrics:input_type -> telemetry.v1.QueryMetricsRequest
+	3, // 5: telemetry.v1.TelemetryIngester.IngestStream:output_type -> telemetry.v1.IngestAck
+	6, // 6: telemetry.v1.TelemetryIngester.QueryMetrics:output_type -> telemetry.v1.QueryMetricsResponse
 	5, // [5:7] is the sub-list for method output_type
 	3, // [3:5] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name

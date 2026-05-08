@@ -490,7 +490,7 @@ var File_leaderboard_v1_leaderboard_proto protoreflect.FileDescriptor
 
 const file_leaderboard_v1_leaderboard_proto_rawDesc = "" +
 	"\n" +
-	" leaderboard/v1/leaderboard.proto\x12\x14iicpc.leaderboard.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe3\x02\n" +
+	" leaderboard/v1/leaderboard.proto\x12\x0eleaderboard.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe3\x02\n" +
 	"\n" +
 	"ScoreEntry\x12#\n" +
 	"\rcontestant_id\x18\x01 \x01(\tR\fcontestantId\x12!\n" +
@@ -505,14 +505,14 @@ const file_leaderboard_v1_leaderboard_proto_rawDesc = "" +
 	"\flast_updated\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\vlastUpdated\"\x1e\n" +
 	"\x0eGetTopNRequest\x12\f\n" +
-	"\x01n\x18\x01 \x01(\x05R\x01n\"M\n" +
-	"\x0fGetTopNResponse\x12:\n" +
-	"\aentries\x18\x01 \x03(\v2 .iicpc.leaderboard.v1.ScoreEntryR\aentries\"@\n" +
+	"\x01n\x18\x01 \x01(\x05R\x01n\"G\n" +
+	"\x0fGetTopNResponse\x124\n" +
+	"\aentries\x18\x01 \x03(\v2\x1a.leaderboard.v1.ScoreEntryR\aentries\"@\n" +
 	"\x19GetContestantScoreRequest\x12#\n" +
 	"\rcontestant_id\x18\x01 \x01(\tR\fcontestantId\"\x16\n" +
-	"\x14StreamUpdatesRequest\"j\n" +
-	"\vScoreUpdate\x126\n" +
-	"\x05entry\x18\x01 \x01(\v2 .iicpc.leaderboard.v1.ScoreEntryR\x05entry\x12#\n" +
+	"\x14StreamUpdatesRequest\"d\n" +
+	"\vScoreUpdate\x120\n" +
+	"\x05entry\x18\x01 \x01(\v2\x1a.leaderboard.v1.ScoreEntryR\x05entry\x12#\n" +
 	"\rprevious_rank\x18\x02 \x01(\x05R\fpreviousRank\"\xd9\x01\n" +
 	"\x12SubmitScoreRequest\x12#\n" +
 	"\rcontestant_id\x18\x01 \x01(\tR\fcontestantId\x12'\n" +
@@ -522,13 +522,13 @@ const file_leaderboard_v1_leaderboard_proto_rawDesc = "" +
 	"\rfill_accuracy\x18\x05 \x01(\x01R\ffillAccuracy\x12\x18\n" +
 	"\acrashes\x18\x06 \x01(\x05R\acrashes\"0\n" +
 	"\x13SubmitScoreResponse\x12\x19\n" +
-	"\bnew_rank\x18\x01 \x01(\x05R\anewRank2\x94\x03\n" +
-	"\vLeaderboard\x12V\n" +
-	"\aGetTopN\x12$.iicpc.leaderboard.v1.GetTopNRequest\x1a%.iicpc.leaderboard.v1.GetTopNResponse\x12g\n" +
-	"\x12GetContestantScore\x12/.iicpc.leaderboard.v1.GetContestantScoreRequest\x1a .iicpc.leaderboard.v1.ScoreEntry\x12`\n" +
-	"\rStreamUpdates\x12*.iicpc.leaderboard.v1.StreamUpdatesRequest\x1a!.iicpc.leaderboard.v1.ScoreUpdate0\x01\x12b\n" +
-	"\vSubmitScore\x12(.iicpc.leaderboard.v1.SubmitScoreRequest\x1a).iicpc.leaderboard.v1.SubmitScoreResponseB\xe3\x01\n" +
-	"\x18com.iicpc.leaderboard.v1B\x10LeaderboardProtoP\x01ZCgithub.com/iicpc/platform/proto/gen/go/leaderboard/v1;leaderboardv1\xa2\x02\x03ILX\xaa\x02\x14Iicpc.Leaderboard.V1\xca\x02\x14Iicpc\\Leaderboard\\V1\xe2\x02 Iicpc\\Leaderboard\\V1\\GPBMetadata\xea\x02\x16Iicpc::Leaderboard::V1b\x06proto3"
+	"\bnew_rank\x18\x01 \x01(\x05R\anewRank2\xe4\x02\n" +
+	"\vLeaderboard\x12J\n" +
+	"\aGetTopN\x12\x1e.leaderboard.v1.GetTopNRequest\x1a\x1f.leaderboard.v1.GetTopNResponse\x12[\n" +
+	"\x12GetContestantScore\x12).leaderboard.v1.GetContestantScoreRequest\x1a\x1a.leaderboard.v1.ScoreEntry\x12T\n" +
+	"\rStreamUpdates\x12$.leaderboard.v1.StreamUpdatesRequest\x1a\x1b.leaderboard.v1.ScoreUpdate0\x01\x12V\n" +
+	"\vSubmitScore\x12\".leaderboard.v1.SubmitScoreRequest\x1a#.leaderboard.v1.SubmitScoreResponseB\xc4\x01\n" +
+	"\x12com.leaderboard.v1B\x10LeaderboardProtoP\x01ZCgithub.com/iicpc/platform/proto/gen/go/leaderboard/v1;leaderboardv1\xa2\x02\x03LXX\xaa\x02\x0eLeaderboard.V1\xca\x02\x0eLeaderboard\\V1\xe2\x02\x1aLeaderboard\\V1\\GPBMetadata\xea\x02\x0fLeaderboard::V1b\x06proto3"
 
 var (
 	file_leaderboard_v1_leaderboard_proto_rawDescOnce sync.Once
@@ -544,28 +544,28 @@ func file_leaderboard_v1_leaderboard_proto_rawDescGZIP() []byte {
 
 var file_leaderboard_v1_leaderboard_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_leaderboard_v1_leaderboard_proto_goTypes = []any{
-	(*ScoreEntry)(nil),                // 0: iicpc.leaderboard.v1.ScoreEntry
-	(*GetTopNRequest)(nil),            // 1: iicpc.leaderboard.v1.GetTopNRequest
-	(*GetTopNResponse)(nil),           // 2: iicpc.leaderboard.v1.GetTopNResponse
-	(*GetContestantScoreRequest)(nil), // 3: iicpc.leaderboard.v1.GetContestantScoreRequest
-	(*StreamUpdatesRequest)(nil),      // 4: iicpc.leaderboard.v1.StreamUpdatesRequest
-	(*ScoreUpdate)(nil),               // 5: iicpc.leaderboard.v1.ScoreUpdate
-	(*SubmitScoreRequest)(nil),        // 6: iicpc.leaderboard.v1.SubmitScoreRequest
-	(*SubmitScoreResponse)(nil),       // 7: iicpc.leaderboard.v1.SubmitScoreResponse
+	(*ScoreEntry)(nil),                // 0: leaderboard.v1.ScoreEntry
+	(*GetTopNRequest)(nil),            // 1: leaderboard.v1.GetTopNRequest
+	(*GetTopNResponse)(nil),           // 2: leaderboard.v1.GetTopNResponse
+	(*GetContestantScoreRequest)(nil), // 3: leaderboard.v1.GetContestantScoreRequest
+	(*StreamUpdatesRequest)(nil),      // 4: leaderboard.v1.StreamUpdatesRequest
+	(*ScoreUpdate)(nil),               // 5: leaderboard.v1.ScoreUpdate
+	(*SubmitScoreRequest)(nil),        // 6: leaderboard.v1.SubmitScoreRequest
+	(*SubmitScoreResponse)(nil),       // 7: leaderboard.v1.SubmitScoreResponse
 	(*timestamppb.Timestamp)(nil),     // 8: google.protobuf.Timestamp
 }
 var file_leaderboard_v1_leaderboard_proto_depIdxs = []int32{
-	8, // 0: iicpc.leaderboard.v1.ScoreEntry.last_updated:type_name -> google.protobuf.Timestamp
-	0, // 1: iicpc.leaderboard.v1.GetTopNResponse.entries:type_name -> iicpc.leaderboard.v1.ScoreEntry
-	0, // 2: iicpc.leaderboard.v1.ScoreUpdate.entry:type_name -> iicpc.leaderboard.v1.ScoreEntry
-	1, // 3: iicpc.leaderboard.v1.Leaderboard.GetTopN:input_type -> iicpc.leaderboard.v1.GetTopNRequest
-	3, // 4: iicpc.leaderboard.v1.Leaderboard.GetContestantScore:input_type -> iicpc.leaderboard.v1.GetContestantScoreRequest
-	4, // 5: iicpc.leaderboard.v1.Leaderboard.StreamUpdates:input_type -> iicpc.leaderboard.v1.StreamUpdatesRequest
-	6, // 6: iicpc.leaderboard.v1.Leaderboard.SubmitScore:input_type -> iicpc.leaderboard.v1.SubmitScoreRequest
-	2, // 7: iicpc.leaderboard.v1.Leaderboard.GetTopN:output_type -> iicpc.leaderboard.v1.GetTopNResponse
-	0, // 8: iicpc.leaderboard.v1.Leaderboard.GetContestantScore:output_type -> iicpc.leaderboard.v1.ScoreEntry
-	5, // 9: iicpc.leaderboard.v1.Leaderboard.StreamUpdates:output_type -> iicpc.leaderboard.v1.ScoreUpdate
-	7, // 10: iicpc.leaderboard.v1.Leaderboard.SubmitScore:output_type -> iicpc.leaderboard.v1.SubmitScoreResponse
+	8, // 0: leaderboard.v1.ScoreEntry.last_updated:type_name -> google.protobuf.Timestamp
+	0, // 1: leaderboard.v1.GetTopNResponse.entries:type_name -> leaderboard.v1.ScoreEntry
+	0, // 2: leaderboard.v1.ScoreUpdate.entry:type_name -> leaderboard.v1.ScoreEntry
+	1, // 3: leaderboard.v1.Leaderboard.GetTopN:input_type -> leaderboard.v1.GetTopNRequest
+	3, // 4: leaderboard.v1.Leaderboard.GetContestantScore:input_type -> leaderboard.v1.GetContestantScoreRequest
+	4, // 5: leaderboard.v1.Leaderboard.StreamUpdates:input_type -> leaderboard.v1.StreamUpdatesRequest
+	6, // 6: leaderboard.v1.Leaderboard.SubmitScore:input_type -> leaderboard.v1.SubmitScoreRequest
+	2, // 7: leaderboard.v1.Leaderboard.GetTopN:output_type -> leaderboard.v1.GetTopNResponse
+	0, // 8: leaderboard.v1.Leaderboard.GetContestantScore:output_type -> leaderboard.v1.ScoreEntry
+	5, // 9: leaderboard.v1.Leaderboard.StreamUpdates:output_type -> leaderboard.v1.ScoreUpdate
+	7, // 10: leaderboard.v1.Leaderboard.SubmitScore:output_type -> leaderboard.v1.SubmitScoreResponse
 	7, // [7:11] is the sub-list for method output_type
 	3, // [3:7] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name

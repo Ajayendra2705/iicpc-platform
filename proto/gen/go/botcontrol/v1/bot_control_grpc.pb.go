@@ -19,9 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BotCoordinator_StartLoadTest_FullMethodName     = "/iicpc.botcontrol.v1.BotCoordinator/StartLoadTest"
-	BotCoordinator_StopLoadTest_FullMethodName      = "/iicpc.botcontrol.v1.BotCoordinator/StopLoadTest"
-	BotCoordinator_GetLoadTestStatus_FullMethodName = "/iicpc.botcontrol.v1.BotCoordinator/GetLoadTestStatus"
+	BotCoordinator_StartLoadTest_FullMethodName     = "/botcontrol.v1.BotCoordinator/StartLoadTest"
+	BotCoordinator_StopLoadTest_FullMethodName      = "/botcontrol.v1.BotCoordinator/StopLoadTest"
+	BotCoordinator_GetLoadTestStatus_FullMethodName = "/botcontrol.v1.BotCoordinator/GetLoadTestStatus"
 )
 
 // BotCoordinatorClient is the client API for BotCoordinator service.
@@ -176,7 +176,7 @@ func _BotCoordinator_GetLoadTestStatus_Handler(srv interface{}, ctx context.Cont
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var BotCoordinator_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "iicpc.botcontrol.v1.BotCoordinator",
+	ServiceName: "botcontrol.v1.BotCoordinator",
 	HandlerType: (*BotCoordinatorServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

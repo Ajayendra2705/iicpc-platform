@@ -142,8 +142,8 @@ type Submission struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ContestantId  string                 `protobuf:"bytes,2,opt,name=contestant_id,json=contestantId,proto3" json:"contestant_id,omitempty"`
-	Language      Language               `protobuf:"varint,3,opt,name=language,proto3,enum=iicpc.submission.v1.Language" json:"language,omitempty"`
-	Status        SubmissionStatus       `protobuf:"varint,4,opt,name=status,proto3,enum=iicpc.submission.v1.SubmissionStatus" json:"status,omitempty"`
+	Language      Language               `protobuf:"varint,3,opt,name=language,proto3,enum=submission.v1.Language" json:"language,omitempty"`
+	Status        SubmissionStatus       `protobuf:"varint,4,opt,name=status,proto3,enum=submission.v1.SubmissionStatus" json:"status,omitempty"`
 	SourceUri     string                 `protobuf:"bytes,5,opt,name=source_uri,json=sourceUri,proto3" json:"source_uri,omitempty"` // MinIO/S3 path to source archive
 	ImageUri      string                 `protobuf:"bytes,6,opt,name=image_uri,json=imageUri,proto3" json:"image_uri,omitempty"`    // built container image ref
 	Entrypoint    string                 `protobuf:"bytes,7,opt,name=entrypoint,proto3" json:"entrypoint,omitempty"`                // e.g. "/app/orderbook"
@@ -257,7 +257,7 @@ func (x *Submission) GetBuildError() string {
 type CreateSubmissionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContestantId  string                 `protobuf:"bytes,1,opt,name=contestant_id,json=contestantId,proto3" json:"contestant_id,omitempty"`
-	Language      Language               `protobuf:"varint,2,opt,name=language,proto3,enum=iicpc.submission.v1.Language" json:"language,omitempty"`
+	Language      Language               `protobuf:"varint,2,opt,name=language,proto3,enum=submission.v1.Language" json:"language,omitempty"`
 	Archive       []byte                 `protobuf:"bytes,3,opt,name=archive,proto3" json:"archive,omitempty"` // tar.gz of source
 	Entrypoint    string                 `protobuf:"bytes,4,opt,name=entrypoint,proto3" json:"entrypoint,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -325,7 +325,7 @@ func (x *CreateSubmissionRequest) GetEntrypoint() string {
 type CreateSubmissionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SubmissionId  string                 `protobuf:"bytes,1,opt,name=submission_id,json=submissionId,proto3" json:"submission_id,omitempty"`
-	Status        SubmissionStatus       `protobuf:"varint,2,opt,name=status,proto3,enum=iicpc.submission.v1.SubmissionStatus" json:"status,omitempty"`
+	Status        SubmissionStatus       `protobuf:"varint,2,opt,name=status,proto3,enum=submission.v1.SubmissionStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -638,13 +638,13 @@ var File_submission_v1_submission_proto protoreflect.FileDescriptor
 
 const file_submission_v1_submission_proto_rawDesc = "" +
 	"\n" +
-	"\x1esubmission/v1/submission.proto\x12\x13iicpc.submission.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xae\x03\n" +
+	"\x1esubmission/v1/submission.proto\x12\rsubmission.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa2\x03\n" +
 	"\n" +
 	"Submission\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
-	"\rcontestant_id\x18\x02 \x01(\tR\fcontestantId\x129\n" +
-	"\blanguage\x18\x03 \x01(\x0e2\x1d.iicpc.submission.v1.LanguageR\blanguage\x12=\n" +
-	"\x06status\x18\x04 \x01(\x0e2%.iicpc.submission.v1.SubmissionStatusR\x06status\x12\x1d\n" +
+	"\rcontestant_id\x18\x02 \x01(\tR\fcontestantId\x123\n" +
+	"\blanguage\x18\x03 \x01(\x0e2\x17.submission.v1.LanguageR\blanguage\x127\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x1f.submission.v1.SubmissionStatusR\x06status\x12\x1d\n" +
 	"\n" +
 	"source_uri\x18\x05 \x01(\tR\tsourceUri\x12\x1b\n" +
 	"\timage_uri\x18\x06 \x01(\tR\bimageUri\x12\x1e\n" +
@@ -657,26 +657,26 @@ const file_submission_v1_submission_proto_rawDesc = "" +
 	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1f\n" +
 	"\vbuild_error\x18\n" +
 	" \x01(\tR\n" +
-	"buildError\"\xb3\x01\n" +
+	"buildError\"\xad\x01\n" +
 	"\x17CreateSubmissionRequest\x12#\n" +
-	"\rcontestant_id\x18\x01 \x01(\tR\fcontestantId\x129\n" +
-	"\blanguage\x18\x02 \x01(\x0e2\x1d.iicpc.submission.v1.LanguageR\blanguage\x12\x18\n" +
+	"\rcontestant_id\x18\x01 \x01(\tR\fcontestantId\x123\n" +
+	"\blanguage\x18\x02 \x01(\x0e2\x17.submission.v1.LanguageR\blanguage\x12\x18\n" +
 	"\aarchive\x18\x03 \x01(\fR\aarchive\x12\x1e\n" +
 	"\n" +
 	"entrypoint\x18\x04 \x01(\tR\n" +
-	"entrypoint\"~\n" +
+	"entrypoint\"x\n" +
 	"\x18CreateSubmissionResponse\x12#\n" +
-	"\rsubmission_id\x18\x01 \x01(\tR\fsubmissionId\x12=\n" +
-	"\x06status\x18\x02 \x01(\x0e2%.iicpc.submission.v1.SubmissionStatusR\x06status\";\n" +
+	"\rsubmission_id\x18\x01 \x01(\tR\fsubmissionId\x127\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x1f.submission.v1.SubmissionStatusR\x06status\";\n" +
 	"\x14GetSubmissionRequest\x12#\n" +
 	"\rsubmission_id\x18\x01 \x01(\tR\fsubmissionId\"y\n" +
 	"\x16ListSubmissionsRequest\x12#\n" +
 	"\rcontestant_id\x18\x01 \x01(\tR\fcontestantId\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tR\tpageToken\"\x84\x01\n" +
-	"\x17ListSubmissionsResponse\x12A\n" +
-	"\vsubmissions\x18\x01 \x03(\v2\x1f.iicpc.submission.v1.SubmissionR\vsubmissions\x12&\n" +
+	"page_token\x18\x03 \x01(\tR\tpageToken\"~\n" +
+	"\x17ListSubmissionsResponse\x12;\n" +
+	"\vsubmissions\x18\x01 \x03(\v2\x19.submission.v1.SubmissionR\vsubmissions\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"=\n" +
 	"\x16StreamBuildLogsRequest\x12#\n" +
 	"\rsubmission_id\x18\x01 \x01(\tR\fsubmissionId\"t\n" +
@@ -697,13 +697,13 @@ const file_submission_v1_submission_proto_rawDesc = "" +
 	"\fSTATUS_READY\x10\x04\x12\x12\n" +
 	"\x0eSTATUS_RUNNING\x10\x05\x12\x14\n" +
 	"\x10STATUS_COMPLETED\x10\x06\x12\x12\n" +
-	"\x0eSTATUS_CRASHED\x10\a2\xb5\x03\n" +
-	"\x11SubmissionService\x12o\n" +
-	"\x10CreateSubmission\x12,.iicpc.submission.v1.CreateSubmissionRequest\x1a-.iicpc.submission.v1.CreateSubmissionResponse\x12[\n" +
-	"\rGetSubmission\x12).iicpc.submission.v1.GetSubmissionRequest\x1a\x1f.iicpc.submission.v1.Submission\x12l\n" +
-	"\x0fListSubmissions\x12+.iicpc.submission.v1.ListSubmissionsRequest\x1a,.iicpc.submission.v1.ListSubmissionsResponse\x12d\n" +
-	"\x0fStreamBuildLogs\x12+.iicpc.submission.v1.StreamBuildLogsRequest\x1a\".iicpc.submission.v1.BuildLogChunk0\x01B\xdb\x01\n" +
-	"\x17com.iicpc.submission.v1B\x0fSubmissionProtoP\x01ZAgithub.com/iicpc/platform/proto/gen/go/submission/v1;submissionv1\xa2\x02\x03ISX\xaa\x02\x13Iicpc.Submission.V1\xca\x02\x13Iicpc\\Submission\\V1\xe2\x02\x1fIicpc\\Submission\\V1\\GPBMetadata\xea\x02\x15Iicpc::Submission::V1b\x06proto3"
+	"\x0eSTATUS_CRASHED\x10\a2\x85\x03\n" +
+	"\x11SubmissionService\x12c\n" +
+	"\x10CreateSubmission\x12&.submission.v1.CreateSubmissionRequest\x1a'.submission.v1.CreateSubmissionResponse\x12O\n" +
+	"\rGetSubmission\x12#.submission.v1.GetSubmissionRequest\x1a\x19.submission.v1.Submission\x12`\n" +
+	"\x0fListSubmissions\x12%.submission.v1.ListSubmissionsRequest\x1a&.submission.v1.ListSubmissionsResponse\x12X\n" +
+	"\x0fStreamBuildLogs\x12%.submission.v1.StreamBuildLogsRequest\x1a\x1c.submission.v1.BuildLogChunk0\x01B\xbc\x01\n" +
+	"\x11com.submission.v1B\x0fSubmissionProtoP\x01ZAgithub.com/iicpc/platform/proto/gen/go/submission/v1;submissionv1\xa2\x02\x03SXX\xaa\x02\rSubmission.V1\xca\x02\rSubmission\\V1\xe2\x02\x19Submission\\V1\\GPBMetadata\xea\x02\x0eSubmission::V1b\x06proto3"
 
 var (
 	file_submission_v1_submission_proto_rawDescOnce sync.Once
@@ -720,35 +720,35 @@ func file_submission_v1_submission_proto_rawDescGZIP() []byte {
 var file_submission_v1_submission_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_submission_v1_submission_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_submission_v1_submission_proto_goTypes = []any{
-	(Language)(0),                    // 0: iicpc.submission.v1.Language
-	(SubmissionStatus)(0),            // 1: iicpc.submission.v1.SubmissionStatus
-	(*Submission)(nil),               // 2: iicpc.submission.v1.Submission
-	(*CreateSubmissionRequest)(nil),  // 3: iicpc.submission.v1.CreateSubmissionRequest
-	(*CreateSubmissionResponse)(nil), // 4: iicpc.submission.v1.CreateSubmissionResponse
-	(*GetSubmissionRequest)(nil),     // 5: iicpc.submission.v1.GetSubmissionRequest
-	(*ListSubmissionsRequest)(nil),   // 6: iicpc.submission.v1.ListSubmissionsRequest
-	(*ListSubmissionsResponse)(nil),  // 7: iicpc.submission.v1.ListSubmissionsResponse
-	(*StreamBuildLogsRequest)(nil),   // 8: iicpc.submission.v1.StreamBuildLogsRequest
-	(*BuildLogChunk)(nil),            // 9: iicpc.submission.v1.BuildLogChunk
+	(Language)(0),                    // 0: submission.v1.Language
+	(SubmissionStatus)(0),            // 1: submission.v1.SubmissionStatus
+	(*Submission)(nil),               // 2: submission.v1.Submission
+	(*CreateSubmissionRequest)(nil),  // 3: submission.v1.CreateSubmissionRequest
+	(*CreateSubmissionResponse)(nil), // 4: submission.v1.CreateSubmissionResponse
+	(*GetSubmissionRequest)(nil),     // 5: submission.v1.GetSubmissionRequest
+	(*ListSubmissionsRequest)(nil),   // 6: submission.v1.ListSubmissionsRequest
+	(*ListSubmissionsResponse)(nil),  // 7: submission.v1.ListSubmissionsResponse
+	(*StreamBuildLogsRequest)(nil),   // 8: submission.v1.StreamBuildLogsRequest
+	(*BuildLogChunk)(nil),            // 9: submission.v1.BuildLogChunk
 	(*timestamppb.Timestamp)(nil),    // 10: google.protobuf.Timestamp
 }
 var file_submission_v1_submission_proto_depIdxs = []int32{
-	0,  // 0: iicpc.submission.v1.Submission.language:type_name -> iicpc.submission.v1.Language
-	1,  // 1: iicpc.submission.v1.Submission.status:type_name -> iicpc.submission.v1.SubmissionStatus
-	10, // 2: iicpc.submission.v1.Submission.created_at:type_name -> google.protobuf.Timestamp
-	10, // 3: iicpc.submission.v1.Submission.updated_at:type_name -> google.protobuf.Timestamp
-	0,  // 4: iicpc.submission.v1.CreateSubmissionRequest.language:type_name -> iicpc.submission.v1.Language
-	1,  // 5: iicpc.submission.v1.CreateSubmissionResponse.status:type_name -> iicpc.submission.v1.SubmissionStatus
-	2,  // 6: iicpc.submission.v1.ListSubmissionsResponse.submissions:type_name -> iicpc.submission.v1.Submission
-	10, // 7: iicpc.submission.v1.BuildLogChunk.ts:type_name -> google.protobuf.Timestamp
-	3,  // 8: iicpc.submission.v1.SubmissionService.CreateSubmission:input_type -> iicpc.submission.v1.CreateSubmissionRequest
-	5,  // 9: iicpc.submission.v1.SubmissionService.GetSubmission:input_type -> iicpc.submission.v1.GetSubmissionRequest
-	6,  // 10: iicpc.submission.v1.SubmissionService.ListSubmissions:input_type -> iicpc.submission.v1.ListSubmissionsRequest
-	8,  // 11: iicpc.submission.v1.SubmissionService.StreamBuildLogs:input_type -> iicpc.submission.v1.StreamBuildLogsRequest
-	4,  // 12: iicpc.submission.v1.SubmissionService.CreateSubmission:output_type -> iicpc.submission.v1.CreateSubmissionResponse
-	2,  // 13: iicpc.submission.v1.SubmissionService.GetSubmission:output_type -> iicpc.submission.v1.Submission
-	7,  // 14: iicpc.submission.v1.SubmissionService.ListSubmissions:output_type -> iicpc.submission.v1.ListSubmissionsResponse
-	9,  // 15: iicpc.submission.v1.SubmissionService.StreamBuildLogs:output_type -> iicpc.submission.v1.BuildLogChunk
+	0,  // 0: submission.v1.Submission.language:type_name -> submission.v1.Language
+	1,  // 1: submission.v1.Submission.status:type_name -> submission.v1.SubmissionStatus
+	10, // 2: submission.v1.Submission.created_at:type_name -> google.protobuf.Timestamp
+	10, // 3: submission.v1.Submission.updated_at:type_name -> google.protobuf.Timestamp
+	0,  // 4: submission.v1.CreateSubmissionRequest.language:type_name -> submission.v1.Language
+	1,  // 5: submission.v1.CreateSubmissionResponse.status:type_name -> submission.v1.SubmissionStatus
+	2,  // 6: submission.v1.ListSubmissionsResponse.submissions:type_name -> submission.v1.Submission
+	10, // 7: submission.v1.BuildLogChunk.ts:type_name -> google.protobuf.Timestamp
+	3,  // 8: submission.v1.SubmissionService.CreateSubmission:input_type -> submission.v1.CreateSubmissionRequest
+	5,  // 9: submission.v1.SubmissionService.GetSubmission:input_type -> submission.v1.GetSubmissionRequest
+	6,  // 10: submission.v1.SubmissionService.ListSubmissions:input_type -> submission.v1.ListSubmissionsRequest
+	8,  // 11: submission.v1.SubmissionService.StreamBuildLogs:input_type -> submission.v1.StreamBuildLogsRequest
+	4,  // 12: submission.v1.SubmissionService.CreateSubmission:output_type -> submission.v1.CreateSubmissionResponse
+	2,  // 13: submission.v1.SubmissionService.GetSubmission:output_type -> submission.v1.Submission
+	7,  // 14: submission.v1.SubmissionService.ListSubmissions:output_type -> submission.v1.ListSubmissionsResponse
+	9,  // 15: submission.v1.SubmissionService.StreamBuildLogs:output_type -> submission.v1.BuildLogChunk
 	12, // [12:16] is the sub-list for method output_type
 	8,  // [8:12] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name

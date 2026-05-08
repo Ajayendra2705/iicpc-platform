@@ -19,10 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Leaderboard_GetTopN_FullMethodName            = "/iicpc.leaderboard.v1.Leaderboard/GetTopN"
-	Leaderboard_GetContestantScore_FullMethodName = "/iicpc.leaderboard.v1.Leaderboard/GetContestantScore"
-	Leaderboard_StreamUpdates_FullMethodName      = "/iicpc.leaderboard.v1.Leaderboard/StreamUpdates"
-	Leaderboard_SubmitScore_FullMethodName        = "/iicpc.leaderboard.v1.Leaderboard/SubmitScore"
+	Leaderboard_GetTopN_FullMethodName            = "/leaderboard.v1.Leaderboard/GetTopN"
+	Leaderboard_GetContestantScore_FullMethodName = "/leaderboard.v1.Leaderboard/GetContestantScore"
+	Leaderboard_StreamUpdates_FullMethodName      = "/leaderboard.v1.Leaderboard/StreamUpdates"
+	Leaderboard_SubmitScore_FullMethodName        = "/leaderboard.v1.Leaderboard/SubmitScore"
 )
 
 // LeaderboardClient is the client API for Leaderboard service.
@@ -212,7 +212,7 @@ func _Leaderboard_SubmitScore_Handler(srv interface{}, ctx context.Context, dec 
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Leaderboard_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "iicpc.leaderboard.v1.Leaderboard",
+	ServiceName: "leaderboard.v1.Leaderboard",
 	HandlerType: (*LeaderboardServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TelemetryIngester_IngestStream_FullMethodName = "/iicpc.telemetry.v1.TelemetryIngester/IngestStream"
-	TelemetryIngester_QueryMetrics_FullMethodName = "/iicpc.telemetry.v1.TelemetryIngester/QueryMetrics"
+	TelemetryIngester_IngestStream_FullMethodName = "/telemetry.v1.TelemetryIngester/IngestStream"
+	TelemetryIngester_QueryMetrics_FullMethodName = "/telemetry.v1.TelemetryIngester/QueryMetrics"
 )
 
 // TelemetryIngesterClient is the client API for TelemetryIngester service.
@@ -138,7 +138,7 @@ func _TelemetryIngester_QueryMetrics_Handler(srv interface{}, ctx context.Contex
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var TelemetryIngester_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "iicpc.telemetry.v1.TelemetryIngester",
+	ServiceName: "telemetry.v1.TelemetryIngester",
 	HandlerType: (*TelemetryIngesterServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

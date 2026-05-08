@@ -19,10 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SubmissionService_CreateSubmission_FullMethodName = "/iicpc.submission.v1.SubmissionService/CreateSubmission"
-	SubmissionService_GetSubmission_FullMethodName    = "/iicpc.submission.v1.SubmissionService/GetSubmission"
-	SubmissionService_ListSubmissions_FullMethodName  = "/iicpc.submission.v1.SubmissionService/ListSubmissions"
-	SubmissionService_StreamBuildLogs_FullMethodName  = "/iicpc.submission.v1.SubmissionService/StreamBuildLogs"
+	SubmissionService_CreateSubmission_FullMethodName = "/submission.v1.SubmissionService/CreateSubmission"
+	SubmissionService_GetSubmission_FullMethodName    = "/submission.v1.SubmissionService/GetSubmission"
+	SubmissionService_ListSubmissions_FullMethodName  = "/submission.v1.SubmissionService/ListSubmissions"
+	SubmissionService_StreamBuildLogs_FullMethodName  = "/submission.v1.SubmissionService/StreamBuildLogs"
 )
 
 // SubmissionServiceClient is the client API for SubmissionService service.
@@ -212,7 +212,7 @@ type SubmissionService_StreamBuildLogsServer = grpc.ServerStreamingServer[BuildL
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var SubmissionService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "iicpc.submission.v1.SubmissionService",
+	ServiceName: "submission.v1.SubmissionService",
 	HandlerType: (*SubmissionServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

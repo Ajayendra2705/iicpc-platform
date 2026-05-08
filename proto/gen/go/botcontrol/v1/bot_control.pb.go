@@ -178,7 +178,7 @@ type StartLoadTestRequest struct {
 	LoadTestId      string                 `protobuf:"bytes,1,opt,name=load_test_id,json=loadTestId,proto3" json:"load_test_id,omitempty"`
 	ContestantId    string                 `protobuf:"bytes,2,opt,name=contestant_id,json=contestantId,proto3" json:"contestant_id,omitempty"`
 	TargetEndpoint  string                 `protobuf:"bytes,3,opt,name=target_endpoint,json=targetEndpoint,proto3" json:"target_endpoint,omitempty"` // host:port of contestant pod
-	Protocol        Protocol               `protobuf:"varint,4,opt,name=protocol,proto3,enum=iicpc.botcontrol.v1.Protocol" json:"protocol,omitempty"`
+	Protocol        Protocol               `protobuf:"varint,4,opt,name=protocol,proto3,enum=botcontrol.v1.Protocol" json:"protocol,omitempty"`
 	BotCount        int32                  `protobuf:"varint,5,opt,name=bot_count,json=botCount,proto3" json:"bot_count,omitempty"`
 	DurationSeconds int32                  `protobuf:"varint,6,opt,name=duration_seconds,json=durationSeconds,proto3" json:"duration_seconds,omitempty"`
 	Profile         *TrafficProfile        `protobuf:"bytes,7,opt,name=profile,proto3" json:"profile,omitempty"`
@@ -545,7 +545,7 @@ var File_botcontrol_v1_bot_control_proto protoreflect.FileDescriptor
 
 const file_botcontrol_v1_bot_control_proto_rawDesc = "" +
 	"\n" +
-	"\x1fbotcontrol/v1/bot_control.proto\x12\x13iicpc.botcontrol.v1\"\xde\x02\n" +
+	"\x1fbotcontrol/v1/bot_control.proto\x12\rbotcontrol.v1\"\xde\x02\n" +
 	"\x0eTrafficProfile\x123\n" +
 	"\x16mean_orders_per_second\x18\x01 \x01(\x01R\x13meanOrdersPerSecond\x12!\n" +
 	"\fcancel_ratio\x18\x02 \x01(\x01R\vcancelRatio\x12)\n" +
@@ -554,16 +554,16 @@ const file_botcontrol_v1_bot_control_proto_rawDesc = "" +
 	"\x11burst_interval_ms\x18\x05 \x01(\x05R\x0fburstIntervalMs\x120\n" +
 	"\x14price_volatility_bps\x18\x06 \x01(\x01R\x12priceVolatilityBps\x12\x1b\n" +
 	"\tmid_price\x18\a \x01(\x01R\bmidPrice\x12\"\n" +
-	"\rjitter_max_ms\x18\b \x01(\x05R\vjitterMaxMs\"\xc8\x02\n" +
+	"\rjitter_max_ms\x18\b \x01(\x05R\vjitterMaxMs\"\xbc\x02\n" +
 	"\x14StartLoadTestRequest\x12 \n" +
 	"\fload_test_id\x18\x01 \x01(\tR\n" +
 	"loadTestId\x12#\n" +
 	"\rcontestant_id\x18\x02 \x01(\tR\fcontestantId\x12'\n" +
-	"\x0ftarget_endpoint\x18\x03 \x01(\tR\x0etargetEndpoint\x129\n" +
-	"\bprotocol\x18\x04 \x01(\x0e2\x1d.iicpc.botcontrol.v1.ProtocolR\bprotocol\x12\x1b\n" +
+	"\x0ftarget_endpoint\x18\x03 \x01(\tR\x0etargetEndpoint\x123\n" +
+	"\bprotocol\x18\x04 \x01(\x0e2\x17.botcontrol.v1.ProtocolR\bprotocol\x12\x1b\n" +
 	"\tbot_count\x18\x05 \x01(\x05R\bbotCount\x12)\n" +
-	"\x10duration_seconds\x18\x06 \x01(\x05R\x0fdurationSeconds\x12=\n" +
-	"\aprofile\x18\a \x01(\v2#.iicpc.botcontrol.v1.TrafficProfileR\aprofile\"t\n" +
+	"\x10duration_seconds\x18\x06 \x01(\x05R\x0fdurationSeconds\x127\n" +
+	"\aprofile\x18\a \x01(\v2\x1d.botcontrol.v1.TrafficProfileR\aprofile\"t\n" +
 	"\x15StartLoadTestResponse\x12 \n" +
 	"\fload_test_id\x18\x01 \x01(\tR\n" +
 	"loadTestId\x12\x16\n" +
@@ -591,12 +591,12 @@ const file_botcontrol_v1_bot_control_proto_rawDesc = "" +
 	"\x14PROTOCOL_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rPROTOCOL_REST\x10\x01\x12\x16\n" +
 	"\x12PROTOCOL_WEBSOCKET\x10\x02\x12\x10\n" +
-	"\fPROTOCOL_FIX\x10\x032\xc6\x02\n" +
-	"\x0eBotCoordinator\x12f\n" +
-	"\rStartLoadTest\x12).iicpc.botcontrol.v1.StartLoadTestRequest\x1a*.iicpc.botcontrol.v1.StartLoadTestResponse\x12c\n" +
-	"\fStopLoadTest\x12(.iicpc.botcontrol.v1.StopLoadTestRequest\x1a).iicpc.botcontrol.v1.StopLoadTestResponse\x12g\n" +
-	"\x11GetLoadTestStatus\x12-.iicpc.botcontrol.v1.GetLoadTestStatusRequest\x1a#.iicpc.botcontrol.v1.LoadTestStatusB\xdb\x01\n" +
-	"\x17com.iicpc.botcontrol.v1B\x0fBotControlProtoP\x01ZAgithub.com/iicpc/platform/proto/gen/go/botcontrol/v1;botcontrolv1\xa2\x02\x03IBX\xaa\x02\x13Iicpc.Botcontrol.V1\xca\x02\x13Iicpc\\Botcontrol\\V1\xe2\x02\x1fIicpc\\Botcontrol\\V1\\GPBMetadata\xea\x02\x15Iicpc::Botcontrol::V1b\x06proto3"
+	"\fPROTOCOL_FIX\x10\x032\xa2\x02\n" +
+	"\x0eBotCoordinator\x12Z\n" +
+	"\rStartLoadTest\x12#.botcontrol.v1.StartLoadTestRequest\x1a$.botcontrol.v1.StartLoadTestResponse\x12W\n" +
+	"\fStopLoadTest\x12\".botcontrol.v1.StopLoadTestRequest\x1a#.botcontrol.v1.StopLoadTestResponse\x12[\n" +
+	"\x11GetLoadTestStatus\x12'.botcontrol.v1.GetLoadTestStatusRequest\x1a\x1d.botcontrol.v1.LoadTestStatusB\xbc\x01\n" +
+	"\x11com.botcontrol.v1B\x0fBotControlProtoP\x01ZAgithub.com/iicpc/platform/proto/gen/go/botcontrol/v1;botcontrolv1\xa2\x02\x03BXX\xaa\x02\rBotcontrol.V1\xca\x02\rBotcontrol\\V1\xe2\x02\x19Botcontrol\\V1\\GPBMetadata\xea\x02\x0eBotcontrol::V1b\x06proto3"
 
 var (
 	file_botcontrol_v1_bot_control_proto_rawDescOnce sync.Once
@@ -613,24 +613,24 @@ func file_botcontrol_v1_bot_control_proto_rawDescGZIP() []byte {
 var file_botcontrol_v1_bot_control_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_botcontrol_v1_bot_control_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_botcontrol_v1_bot_control_proto_goTypes = []any{
-	(Protocol)(0),                    // 0: iicpc.botcontrol.v1.Protocol
-	(*TrafficProfile)(nil),           // 1: iicpc.botcontrol.v1.TrafficProfile
-	(*StartLoadTestRequest)(nil),     // 2: iicpc.botcontrol.v1.StartLoadTestRequest
-	(*StartLoadTestResponse)(nil),    // 3: iicpc.botcontrol.v1.StartLoadTestResponse
-	(*StopLoadTestRequest)(nil),      // 4: iicpc.botcontrol.v1.StopLoadTestRequest
-	(*StopLoadTestResponse)(nil),     // 5: iicpc.botcontrol.v1.StopLoadTestResponse
-	(*GetLoadTestStatusRequest)(nil), // 6: iicpc.botcontrol.v1.GetLoadTestStatusRequest
-	(*LoadTestStatus)(nil),           // 7: iicpc.botcontrol.v1.LoadTestStatus
+	(Protocol)(0),                    // 0: botcontrol.v1.Protocol
+	(*TrafficProfile)(nil),           // 1: botcontrol.v1.TrafficProfile
+	(*StartLoadTestRequest)(nil),     // 2: botcontrol.v1.StartLoadTestRequest
+	(*StartLoadTestResponse)(nil),    // 3: botcontrol.v1.StartLoadTestResponse
+	(*StopLoadTestRequest)(nil),      // 4: botcontrol.v1.StopLoadTestRequest
+	(*StopLoadTestResponse)(nil),     // 5: botcontrol.v1.StopLoadTestResponse
+	(*GetLoadTestStatusRequest)(nil), // 6: botcontrol.v1.GetLoadTestStatusRequest
+	(*LoadTestStatus)(nil),           // 7: botcontrol.v1.LoadTestStatus
 }
 var file_botcontrol_v1_bot_control_proto_depIdxs = []int32{
-	0, // 0: iicpc.botcontrol.v1.StartLoadTestRequest.protocol:type_name -> iicpc.botcontrol.v1.Protocol
-	1, // 1: iicpc.botcontrol.v1.StartLoadTestRequest.profile:type_name -> iicpc.botcontrol.v1.TrafficProfile
-	2, // 2: iicpc.botcontrol.v1.BotCoordinator.StartLoadTest:input_type -> iicpc.botcontrol.v1.StartLoadTestRequest
-	4, // 3: iicpc.botcontrol.v1.BotCoordinator.StopLoadTest:input_type -> iicpc.botcontrol.v1.StopLoadTestRequest
-	6, // 4: iicpc.botcontrol.v1.BotCoordinator.GetLoadTestStatus:input_type -> iicpc.botcontrol.v1.GetLoadTestStatusRequest
-	3, // 5: iicpc.botcontrol.v1.BotCoordinator.StartLoadTest:output_type -> iicpc.botcontrol.v1.StartLoadTestResponse
-	5, // 6: iicpc.botcontrol.v1.BotCoordinator.StopLoadTest:output_type -> iicpc.botcontrol.v1.StopLoadTestResponse
-	7, // 7: iicpc.botcontrol.v1.BotCoordinator.GetLoadTestStatus:output_type -> iicpc.botcontrol.v1.LoadTestStatus
+	0, // 0: botcontrol.v1.StartLoadTestRequest.protocol:type_name -> botcontrol.v1.Protocol
+	1, // 1: botcontrol.v1.StartLoadTestRequest.profile:type_name -> botcontrol.v1.TrafficProfile
+	2, // 2: botcontrol.v1.BotCoordinator.StartLoadTest:input_type -> botcontrol.v1.StartLoadTestRequest
+	4, // 3: botcontrol.v1.BotCoordinator.StopLoadTest:input_type -> botcontrol.v1.StopLoadTestRequest
+	6, // 4: botcontrol.v1.BotCoordinator.GetLoadTestStatus:input_type -> botcontrol.v1.GetLoadTestStatusRequest
+	3, // 5: botcontrol.v1.BotCoordinator.StartLoadTest:output_type -> botcontrol.v1.StartLoadTestResponse
+	5, // 6: botcontrol.v1.BotCoordinator.StopLoadTest:output_type -> botcontrol.v1.StopLoadTestResponse
+	7, // 7: botcontrol.v1.BotCoordinator.GetLoadTestStatus:output_type -> botcontrol.v1.LoadTestStatus
 	5, // [5:8] is the sub-list for method output_type
 	2, // [2:5] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
