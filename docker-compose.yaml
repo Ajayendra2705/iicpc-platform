@@ -56,8 +56,18 @@ services:
     volumes:
       - redpanda-data:/var/lib/redpanda/data
 
+  registry:
+    image: registry:2.8
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    ports:
+      - "5000:5000"
+    volumes:
+      - registry-data:/var/lib/registry
+
 volumes:
   minio-data:
   postgres-data:
   redis-data:
   redpanda-data:
+  registry-data:

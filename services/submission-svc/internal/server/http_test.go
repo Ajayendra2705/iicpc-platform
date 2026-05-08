@@ -23,6 +23,10 @@ func (f *fakeStorage) Put(_ context.Context, key string, _ io.Reader, _ int64, _
 	return "s3://test/" + key, nil
 }
 
+func (f *fakeStorage) Get(_ context.Context, _ string) (io.ReadCloser, int64, error) {
+	return io.NopCloser(strings.NewReader("")), 0, nil
+}
+
 type fakeBuilder struct {
 	enqueued []string
 }

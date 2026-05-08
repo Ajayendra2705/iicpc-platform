@@ -1,13 +1,13 @@
 go 1.22
 
 use (
+	./services/aggregator
 	./services/api-gateway
-	./services/submission-svc
-	./services/sandbox-runner
 	./services/bot-coordinator
 	./services/bot-worker
-	./services/telemetry-ingester
-	./services/aggregator
-	./services/validator
 	./services/leaderboard-svc
+	./services/sandbox-runner
+	./services/submission-svc
+	./services/telemetry-ingester
+	./services/validator
 )

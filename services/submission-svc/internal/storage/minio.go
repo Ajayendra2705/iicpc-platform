@@ -21,6 +21,7 @@ type Config struct {
 
 type ObjectStore interface {
 	Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) (string, error)
+	Get(ctx context.Context, key string) (io.ReadCloser, int64, error)
 }
 
 type MinIO struct {
@@ -60,4 +61,17 @@ func (m *MinIO) Put(ctx context.Context, key string, r io.Reader, size int64, co
 		return "", fmt.Errorf("put object: %w", err)
 	}
 	return fmt.Sprintf("s3://%s/%s", m.bucket, key), nil
+}
+
+func (m *MinIO) Get(ctx context.Context, key string) (io.ReadCloser, int64, error) {
+	obj, err := m.client.GetObject(ctx, m.bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, 0, fmt.Errorf("get object: %w", err)
+	}
+	stat, err := obj.Stat()
+	if err != nil {
+		_ = obj.Close()
+		return nil, 0, fmt.Errorf("stat object: %w", err)
+	}
+	return obj, stat.Size, nil
 }
