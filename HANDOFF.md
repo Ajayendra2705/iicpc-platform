@@ -2,7 +2,10 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 3 completion + 20-issue tech-debt sweep + buf lint cleanup. **Day 4 not yet started.**
+> Last updated after Day 3 completion + 20-issue tech-debt sweep + buf lint cleanup + GitHub push + CI green. **Day 4 not yet started.**
+
+**GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
+**CI:** GitHub Actions, all jobs green as of commit `117baca`. Workflow file: `.github/workflows/ci.yml`. Per-module matrix (test + golangci-lint) + buf lint.
 
 ---
 
@@ -117,6 +120,9 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | 3 | Real Docker builder (`buildkit.go`): MinIO download → tar extract → `docker build` w/ sandbox Dockerfile → push to local registry. Sandbox Dockerfiles for Go/Rust/C++. Smoke-go sample. | ✅ done | `63ccbba` |
 | 3.5 | **Tech-debt sweep:** 20 audit issues fixed (auth, gzip sniff, queue 503, Postgres backend, retry, drain, Trivy, CI, slog, ...). | ✅ done | `0158c3d` |
 | 3.6 | buf lint cleanup (drop `iicpc.` pkg prefix, move buf.yaml to root, naming-rule exclusions) | ✅ done | `57f3de1` |
+| 3.7 | HANDOFF.md added | ✅ done | `04a7079` |
+| 3.8 | GitHub repo created + pushed; CI workspace-mode + proto-fmt fixes (per-module matrix; reorder option/import; collapse comment spacing); .gitignore tightened | ✅ done | `cf4a017` |
+| 3.9 | staticcheck fixes for submission-svc (drop deprecated `tar.TypeRegA`; restructure trivy nil-check to compare concrete `*TrivyScanner` before interface assignment) — **CI fully green** | ✅ done | `117baca` |
 | **4** | **sandbox-runner:** K8s pod spawn with gVisor runtimeClassName, NetworkPolicy isolation, cgroup resource limits | ⏳ **next** |  |
 | 5 | Reference orderbook (full Go impl, beyond smoke-go) | pending |  |
 | 6 | api-gateway (JWT, rate limiting, routing) | pending |  |
@@ -255,6 +261,10 @@ curl http://localhost:8080/submissions/<id>
 6. **buf.yaml is at repo root**, not inside `proto/`. `modules: [{path: proto}]`. Lint excludes naming-style rules (PACKAGE_VERSION_SUFFIX, SERVICE_SUFFIX, RPC_*_STANDARD_NAME, RPC_REQUEST_RESPONSE_UNIQUE, ENUM_VALUE_PREFIX, ENUM_ZERO_VALUE_SUFFIX).
 7. **Proto packages dropped `iicpc.` prefix** — packages are `submission.v1`, `telemetry.v1`, `botcontrol.v1`, `leaderboard.v1`. `go_package = github.com/iicpc/platform/proto/gen/go/<svc>/v1;<svc>v1`.
 8. **User often missed `BUILDER_KIND=buildkit` env on second run** — service silently fell back to stub. Always check env if "build did nothing weird."
+9. **CI workspace gotcha** — `go vet ./...` / `golangci-lint ./...` run from repo root **fail** with `directory prefix . does not contain modules listed in go.work` because there's no root `go.mod`. Always run per-module via matrix (see `ci.yml`).
+10. **buf format strict rules** — imports must come before `option go_package`; trailing inline comments use single space before `//`. Don't hand-format with multi-space alignment.
+11. **`tar.TypeReg` only** — never use `tar.TypeRegA` (deprecated since Go 1.11; staticcheck SA1019 will fail CI).
+12. **Typed-nil interface trap** — `func() *T` returning nil, assigned to interface var, makes interface non-nil. Compare concrete pointer first (see `main.go` trivy block for the pattern).
 
 ---
 
@@ -307,8 +317,8 @@ curl http://localhost:8080/submissions/<id>
 Run these to verify state:
 
 ```powershell
-git log --oneline -6
-# expect: 57f3de1, 0158c3d, 63ccbba, 2ef477e, ba5a3ef
+git log --oneline -8
+# expect (newest first): 117baca, cf4a017, 04a7079, 57f3de1, 0158c3d, 63ccbba, 2ef477e, ba5a3ef
 
 git status --short
 # expect: clean except .claude/ and IDEATION_IMPLEMENTATION_PIPELINE.md (untracked, intentional)
