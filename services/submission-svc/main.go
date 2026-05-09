@@ -130,8 +130,9 @@ func newBuilder(cfg config, repo store.Repository, objStore storage.ObjectStore,
 	case "buildkit":
 		var scanner build.ImageScanner
 		if cfg.trivyEnabled {
-			scanner = build.NewTrivyScanner(log)
-			if scanner == nil {
+			if ts := build.NewTrivyScanner(log); ts != nil {
+				scanner = ts
+			} else {
 				log.Warn("TRIVY_ENABLED=true but trivy not on PATH; scanning disabled")
 			}
 		}

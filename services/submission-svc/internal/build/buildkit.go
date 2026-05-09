@@ -322,7 +322,7 @@ func extractTarEntry(tr *tar.Reader, hdr *tar.Header, dst string, maxFileBytes i
 		if err := os.MkdirAll(target, 0o755); err != nil {
 			return fmt.Errorf("mkdir %s: %w", target, err)
 		}
-	case tar.TypeReg, tar.TypeRegA:
+	case tar.TypeReg:
 		if hdr.Size > maxFileBytes {
 			return fmt.Errorf("tar entry %s exceeds per-file cap %d bytes", hdr.Name, maxFileBytes)
 		}
