@@ -36,9 +36,9 @@ message OrderEvent {
   OrderType type = 5;
   OrderResult result = 6;
 
-  int64 sent_ts_ns = 7;        // bot monotonic clock at send
-  int64 ack_ts_ns = 8;          // bot monotonic clock at ack
-  int64 latency_ns = 9;         // ack_ts_ns - sent_ts_ns
+  int64 sent_ts_ns = 7; // bot monotonic clock at send
+  int64 ack_ts_ns = 8; // bot monotonic clock at ack
+  int64 latency_ns = 9; // ack_ts_ns - sent_ts_ns
 
   double price = 10;
   int64 quantity = 11;

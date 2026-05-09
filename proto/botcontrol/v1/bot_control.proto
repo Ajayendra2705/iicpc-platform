@@ -18,12 +18,12 @@ enum Protocol {
 }
 
 message TrafficProfile {
-  double mean_orders_per_second = 1;   // Poisson lambda
-  double cancel_ratio = 2;             // 0.0 - 1.0
-  double burst_multiplier = 3;         // e.g. 10x for spikes
+  double mean_orders_per_second = 1; // Poisson lambda
+  double cancel_ratio = 2; // 0.0 - 1.0
+  double burst_multiplier = 3; // e.g. 10x for spikes
   int32 burst_duration_ms = 4;
   int32 burst_interval_ms = 5;
-  double price_volatility_bps = 6;     // gaussian sigma in bps around mid
+  double price_volatility_bps = 6; // gaussian sigma in bps around mid
   double mid_price = 7;
   int32 jitter_max_ms = 8;
 }
@@ -31,7 +31,7 @@ message TrafficProfile {
 message StartLoadTestRequest {
   string load_test_id = 1;
   string contestant_id = 2;
-  string target_endpoint = 3;          // host:port of contestant pod
+  string target_endpoint = 3; // host:port of contestant pod
   Protocol protocol = 4;
   int32 bot_count = 5;
   int32 duration_seconds = 6;
@@ -59,7 +59,7 @@ message GetLoadTestStatusRequest {
 
 message LoadTestStatus {
   string load_test_id = 1;
-  string state = 2;                    // PENDING, RUNNING, COMPLETED, FAILED
+  string state = 2; // PENDING, RUNNING, COMPLETED, FAILED
   int32 active_bots = 3;
   int64 total_orders_sent = 4;
   int64 elapsed_seconds = 5;

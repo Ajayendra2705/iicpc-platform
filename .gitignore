@@ -67,3 +67,8 @@ redis-data/
 
 # Reference materials (kept locally, not in repo)
 *.pdf
+IDEATION_IMPLEMENTATION_PIPELINE.md
+
+# Claude session/skill data
+.claude/
+

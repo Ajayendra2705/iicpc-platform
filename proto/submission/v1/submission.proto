@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package submission.v1;
 
-option go_package = "github.com/iicpc/platform/proto/gen/go/submission/v1;submissionv1";
-
 import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/iicpc/platform/proto/gen/go/submission/v1;submissionv1";
 
 service SubmissionService {
   rpc CreateSubmission(CreateSubmissionRequest) returns (CreateSubmissionResponse);
@@ -36,9 +36,9 @@ message Submission {
   string contestant_id = 2;
   Language language = 3;
   SubmissionStatus status = 4;
-  string source_uri = 5;       // MinIO/S3 path to source archive
-  string image_uri = 6;        // built container image ref
-  string entrypoint = 7;       // e.g. "/app/orderbook"
+  string source_uri = 5; // MinIO/S3 path to source archive
+  string image_uri = 6; // built container image ref
+  string entrypoint = 7; // e.g. "/app/orderbook"
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
   string build_error = 10;
@@ -47,7 +47,7 @@ message Submission {
 message CreateSubmissionRequest {
   string contestant_id = 1;
   Language language = 2;
-  bytes archive = 3;           // tar.gz of source
+  bytes archive = 3; // tar.gz of source
   string entrypoint = 4;
 }
 
