@@ -2,10 +2,10 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 3 completion + 20-issue tech-debt sweep + buf lint cleanup + GitHub push + CI green. **Day 4 not yet started.**
+> Last updated after Day 4 completion. **Day 5 not yet started.**
 
 **GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
-**CI:** GitHub Actions, all jobs green as of commit `117baca`. Workflow file: `.github/workflows/ci.yml`. Per-module matrix (test + golangci-lint) + buf lint.
+**CI:** GitHub Actions, all jobs green as of commit `018b413`. Workflow file: `.github/workflows/ci.yml`. Per-module matrix (test + golangci-lint) + buf lint.
 
 ---
 
@@ -123,8 +123,8 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | 3.7 | HANDOFF.md added | ✅ done | `04a7079` |
 | 3.8 | GitHub repo created + pushed; CI workspace-mode + proto-fmt fixes (per-module matrix; reorder option/import; collapse comment spacing); .gitignore tightened | ✅ done | `cf4a017` |
 | 3.9 | staticcheck fixes for submission-svc (drop deprecated `tar.TypeRegA`; restructure trivy nil-check to compare concrete `*TrivyScanner` before interface assignment) — **CI fully green** | ✅ done | `117baca` |
-| **4** | **sandbox-runner:** K8s pod spawn with gVisor runtimeClassName, NetworkPolicy isolation, cgroup resource limits | ⏳ **next** |  |
-| 5 | Reference orderbook (full Go impl, beyond smoke-go) | pending |  |
+| **4** | **sandbox-runner:** K8s pod spawn with gVisor runtimeClassName, NetworkPolicy isolation, cgroup resource limits | ✅ done | `018b413` |
+| **5** | **Reference orderbook** (full Go impl beyond smoke-go) | ⏳ **next** |  |
 | 6 | api-gateway (JWT, rate limiting, routing) | pending |  |
 | 7 | Buffer / catch-up | pending |  |
 | 8-14 | Bot fleet: bot-worker + bot-coordinator, REST/WS/FIX, Poisson order gen | pending |  |
@@ -281,25 +281,41 @@ curl http://localhost:8080/submissions/<id>
 
 ---
 
-## 11. What's Next (Day 4)
+## 11. What's Next (Day 5)
 
-**sandbox-runner service.** Goals:
-- gRPC service that takes a built image URL + submission metadata.
-- Spawns a K8s Pod with:
-  - `runtimeClassName: gvisor`
-  - `securityContext`: drop ALL caps, readOnlyRootFilesystem, runAsNonRoot, RuntimeDefault seccomp.
-  - cgroup limits: CPU (e.g. 1 core), memory (512 Mi), ephemeral-storage cap.
-  - NetworkPolicy: ingress only from bot pool, egress denied except DNS.
-  - Node selector: `pool=contestants` (tainted in `infra/kind/cluster.yaml`).
-- Returns Pod IP + runtime port to the caller (bot-coordinator will use this).
-- Lifecycle: spawn → readiness probe `/health` → notify caller → tear down on submission complete or timeout.
+**Reference orderbook service.** Goals (per PLAN.md Day 5):
+- Full Go orderbook beyond smoke-go: price-time priority matching, order types (limit/cancel).
+- Satisfies the runtime contract (`/health` endpoint, FIX/REST/WS protocol ports).
+- Deploys end-to-end: upload → submission-svc builds → sandbox-runner spawns → orderbook receives orders.
 
-**Pre-Day-4 user steps (already noted in chat):**
-- `kubectl` 1.36 + `kind` 0.31 installed (winget).
-- After PATH refresh: `kind create cluster --config infra/kind/cluster.yaml --name iicpc`.
-- Verify nodes: `kubectl get nodes` → 4 nodes, taint on contestants pool.
+**Do NOT start Day 5 without explicit `"go"` from user.**
 
-**Do NOT start Day 4 without explicit `"go"` from user.**
+---
+
+## 11b. sandbox-runner — Detailed State (Day 4 complete)
+
+**Entry:** `services/sandbox-runner/main.go`. gRPC server, graceful shutdown on SIGTERM.
+
+**Config env vars:**
+| Var | Default | Notes |
+|---|---|---|
+| `GRPC_ADDR` | `:9090` | |
+| `K8S_NAMESPACE` | `iicpc-contestants` | namespace for contestant pods |
+| `RUNTIME_CLASS` | `gvisor` | set empty to omit (plain runc for local dev) |
+| `CPU_REQUEST` / `CPU_LIMIT` | `500m` / `1000m` | |
+| `MEMORY_REQUEST` / `MEMORY_LIMIT` | `256Mi` / `512Mi` | |
+| `EPHEMERAL_LIMIT` | `2Gi` | |
+| `READINESS_TIMEOUT` | `60s` | pod ready wait |
+
+**gRPC methods:** `RunSandbox` (spawn + wait ready → pod IP) · `StopSandbox` (delete pod) · `GetSandboxStatus`
+
+**Pod spec features:** `runtimeClassName: gvisor`, drop ALL caps, readOnlyRootFilesystem, runAsNonRoot (uid 65532), RuntimeDefault seccomp, CPU/mem/ephemeral limits, nodeSelector `iicpc.io/pool=contestants`, `/health` readiness probe.
+
+**Manifests:** `infra/manifests/sandbox-runner.yaml` — `iicpc-contestants` namespace (PSA restricted), ClusterRole + RoleBinding (pod CRUD scoped to contestants ns), NetworkPolicy (ingress: bot-worker only; egress: DNS only), Deployment + Service.
+
+**Tests:** 8 unit tests using fake K8s client (no real cluster needed). `runner_test.go`.
+
+**Module path note:** All modules renamed from `github.com/iicpc/platform/...` → `github.com/Ajayendra2705/iicpc-platform/...` in Day 4. Set `GOPRIVATE=github.com/Ajayendra2705` + `GONOSUMDB=github.com/Ajayendra2705` + run `gh auth setup-git` before `go mod tidy` in any new service.
 
 ---
 
