@@ -2,10 +2,10 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 4 completion. **Day 5 not yet started.**
+> Last updated after Day 5 completion. **Day 6 not yet started.**
 
 **GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
-**CI:** GitHub Actions, all jobs green as of commit `018b413`. Workflow file: `.github/workflows/ci.yml`. Per-module matrix (test + golangci-lint) + buf lint.
+**CI:** GitHub Actions, all jobs green as of commit `018b413` (Day 4; Day 5 adds no CI-breaking changes). Workflow file: `.github/workflows/ci.yml`. Per-module matrix (test + golangci-lint) + buf lint.
 
 ---
 
@@ -94,6 +94,7 @@ The user driving this project:
 │   └── gen/go/                   # buf generates here; committed
 ├── sandbox-images/Dockerfile.{go,rust,cpp}
 ├── samples/smoke-go/             # smallest contestant satisfying runtime contract
+├── samples/reference-orderbook/  # Day 5: full heap-based price-time priority orderbook
 ├── scripts/{dev-up,kind-up,proto-gen}.sh
 └── services/
     ├── api-gateway/             (skeleton, Day 6)
@@ -124,15 +125,16 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | 3.8 | GitHub repo created + pushed; CI workspace-mode + proto-fmt fixes (per-module matrix; reorder option/import; collapse comment spacing); .gitignore tightened | ✅ done | `cf4a017` |
 | 3.9 | staticcheck fixes for submission-svc (drop deprecated `tar.TypeRegA`; restructure trivy nil-check to compare concrete `*TrivyScanner` before interface assignment) — **CI fully green** | ✅ done | `117baca` |
 | **4** | **sandbox-runner:** K8s pod spawn with gVisor runtimeClassName, NetworkPolicy isolation, cgroup resource limits | ✅ done | `018b413` |
-| **5** | **Reference orderbook** (full Go impl beyond smoke-go) | ⏳ **next** |  |
-| 6 | api-gateway (JWT, rate limiting, routing) | pending |  |
+| **5** | **Reference orderbook:** heap-based price-time priority matching engine, HTTP server, 8 unit tests | ✅ done | `f53a549` |
+| **6** | api-gateway (JWT, rate limiting, routing) | ⏳ **next** |  |
+| 7 | Buffer / catch-up | pending |  |
 | 7 | Buffer / catch-up | pending |  |
 | 8-14 | Bot fleet: bot-worker + bot-coordinator, REST/WS/FIX, Poisson order gen | pending |  |
 | 15-21 | Telemetry: ingester + aggregator (HDR histograms) + validator + leaderboard (Redis ZSET) | pending |  |
 | 22-28 | Frontend (Next.js), Terraform AWS, Helm charts, chaos tests | pending |  |
 | 29-32 | Docs polish, demo video, submission | pending |  |
 
-**Current branch:** `master`. **Default PR base:** `main`.
+**Current branch:** `main`. **Default PR base:** `main`.
 
 ---
 
@@ -281,14 +283,31 @@ curl http://localhost:8080/submissions/<id>
 
 ---
 
-## 11. What's Next (Day 5)
+## 11. What's Next (Day 6)
 
-**Reference orderbook service.** Goals (per PLAN.md Day 5):
-- Full Go orderbook beyond smoke-go: price-time priority matching, order types (limit/cancel).
-- Satisfies the runtime contract (`/health` endpoint, FIX/REST/WS protocol ports).
-- Deploys end-to-end: upload → submission-svc builds → sandbox-runner spawns → orderbook receives orders.
+**api-gateway** — JWT auth, rate limiting, routing to backend services.
 
-**Do NOT start Day 5 without explicit `"go"` from user.**
+**Do NOT start Day 6 without explicit `"go"` from user.**
+
+---
+
+## 11c. reference-orderbook — Detailed State (Day 5 complete)
+
+**Location:** `samples/reference-orderbook/` — standalone Go module (`module reference-orderbook`, no external deps).
+
+**engine/orderbook.go:**
+- `bidHeap` (max-price, then min-time) + `askHeap` (min-price, min-time) via `container/heap`
+- `Order{ID, Side, Price float64, Qty, Remaining int64, At time.Time}`
+- `Fill{BuyOrderID, SellOrderID string, Price float64, Qty int64}`
+- `Place()` — matches immediately, lazy-deletes cancelled/exhausted heap entries, rests remainder on book
+- `Cancel()` — marks `Remaining=0`; heap cleaned lazily on next match traversal
+- `Snapshot()` — aggregates by price level, bids sorted desc / asks sorted asc
+
+**main.go:** Go 1.22 mux patterns (`POST /order`, `DELETE /order/{id}`, `GET /orderbook`, `GET /health`). `$RUNTIME_PORT` env. SIGTERM graceful shutdown (5s drain).
+
+**Tests:** 8 unit tests (`engine/orderbook_test.go`). All pass. No real cluster or infra needed.
+
+**Commit:** `f53a549`
 
 ---
 
@@ -333,8 +352,8 @@ curl http://localhost:8080/submissions/<id>
 Run these to verify state:
 
 ```powershell
-git log --oneline -8
-# expect (newest first): 117baca, cf4a017, 04a7079, 57f3de1, 0158c3d, 63ccbba, 2ef477e, ba5a3ef
+git log --oneline -10
+# expect (newest first): f53a549, 79bff8e, 018b413, 9064257, 117baca, cf4a017, 04a7079, 57f3de1, 0158c3d, 63ccbba
 
 git status --short
 # expect: clean except .claude/ and IDEATION_IMPLEMENTATION_PIPELINE.md (untracked, intentional)
