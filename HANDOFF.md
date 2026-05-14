@@ -2,10 +2,10 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 5 completion. **Day 6 not yet started.**
+> Last updated after Day 6 completion. **Day 7 (buffer/catch-up) or Day 8 (bot fleet) next.**
 
 **GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
-**CI:** GitHub Actions, all jobs green as of commit `018b413` (Day 4; Day 5 adds no CI-breaking changes). Workflow file: `.github/workflows/ci.yml`. Per-module matrix (test + golangci-lint) + buf lint.
+**CI:** GitHub Actions, all jobs green as of commit `018b413` (Day 4; Days 5–6 add no CI-breaking changes). Workflow file: `.github/workflows/ci.yml`. Per-module matrix (test + golangci-lint) + buf lint.
 
 ---
 
@@ -126,8 +126,9 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | 3.9 | staticcheck fixes for submission-svc (drop deprecated `tar.TypeRegA`; restructure trivy nil-check to compare concrete `*TrivyScanner` before interface assignment) — **CI fully green** | ✅ done | `117baca` |
 | **4** | **sandbox-runner:** K8s pod spawn with gVisor runtimeClassName, NetworkPolicy isolation, cgroup resource limits | ✅ done | `018b413` |
 | **5** | **Reference orderbook:** heap-based price-time priority matching engine, HTTP server, 8 unit tests | ✅ done | `f53a549` |
-| **6** | api-gateway (JWT, rate limiting, routing) | ⏳ **next** |  |
-| 7 | Buffer / catch-up | pending |  |
+| **6** | **api-gateway:** stdlib HS256 JWT, per-IP token bucket, reverse proxy to submission-svc. 11 tests | ✅ done | `fd77674` |
+| 7 | Buffer / catch-up | ⏳ **next** |  |
+| 8–14 | Bot fleet: bot-worker + bot-coordinator, REST/WS/FIX, Poisson order gen | pending |  |
 | 7 | Buffer / catch-up | pending |  |
 | 8-14 | Bot fleet: bot-worker + bot-coordinator, REST/WS/FIX, Poisson order gen | pending |  |
 | 15-21 | Telemetry: ingester + aggregator (HDR histograms) + validator + leaderboard (Redis ZSET) | pending |  |
@@ -283,11 +284,37 @@ curl http://localhost:8080/submissions/<id>
 
 ---
 
-## 11. What's Next (Day 6)
+## 11. What's Next (Day 7 / Day 8)
 
-**api-gateway** — JWT auth, rate limiting, routing to backend services.
+Day 7 is a buffer day. If user says `"go"`, proceed directly to **Day 8: bot-worker** (REST load gen, configurable order rate, Poisson arrivals).
 
-**Do NOT start Day 6 without explicit `"go"` from user.**
+**Do NOT start without explicit `"go"` from user.**
+
+---
+
+## 11d. api-gateway — Detailed State (Day 6 complete)
+
+**Entry:** `services/api-gateway/main.go`. Zero external deps (all stdlib).
+
+**Config env vars:**
+| Var | Default | Notes |
+|---|---|---|
+| `API_GATEWAY_ADDR` | `:8080` | listen address |
+| `JWT_SECRET` | `change-me-in-prod` | HS256 HMAC key — **must be set in prod** |
+| `SUBMISSION_SVC_URL` | `http://localhost:8081` | submission-svc backend; set `HTTP_ADDR=:8081` on submission-svc for local co-run |
+
+**Rate limits:** 20 rps sustained, burst 50, per source IP. Token bucket with 5-min idle eviction.
+
+**Routes:**
+- `GET /healthz` — no auth, no rate key
+- `POST /auth/token` body `{"contestant_id":"..."}` → issues 15-min HS256 JWT
+- `POST /submissions` / `GET /submissions` / `GET /submissions/{id}` — JWT required → proxied to submission-svc
+
+**JWT:** stdlib HS256 (no external lib). `X-Contestant-ID` injected on proxy requests.
+
+**Middleware chain:** AccessLog → RequestID → RateLimit → mux → [JWT] → proxy
+
+**Tests:** 11 across 3 packages (main, auth, ratelimit). Commit: `fd77674`
 
 ---
 
@@ -353,7 +380,7 @@ Run these to verify state:
 
 ```powershell
 git log --oneline -10
-# expect (newest first): f53a549, 79bff8e, 018b413, 9064257, 117baca, cf4a017, 04a7079, 57f3de1, 0158c3d, 63ccbba
+# expect (newest first): fd77674, 8d75f14, f53a549, 79bff8e, 018b413, 9064257, 117baca, cf4a017, 04a7079, 57f3de1
 
 git status --short
 # expect: clean except .claude/ and IDEATION_IMPLEMENTATION_PIPELINE.md (untracked, intentional)
