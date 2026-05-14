@@ -7,7 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/minio/minio-go/v7 v7.0.74
-	google.golang.org/grpc v1.81.1
+	google.golang.org/grpc v1.65.0
 )
 
 require (
