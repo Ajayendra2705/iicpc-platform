@@ -172,40 +172,40 @@ func newBuilder(cfg config, repo store.Repository, objStore storage.ObjectStore,
 }
 
 type config struct {
-	httpAddr        string
-	maxArchiveBytes int64
-	minioEndpoint   string
-	minioAccessKey  string
-	minioSecretKey  string
-	minioBucket     string
-	minioUseSSL     bool
-	builderKind     string
-	sandboxImageDir string
-	registryAddr    string
-	buildTimeout    time.Duration
-	storeKind       string
-	storeDSN        string
-	internalToken      string
-	trivyEnabled       bool
-	sandboxRunnerAddr  string
+	httpAddr          string
+	maxArchiveBytes   int64
+	minioEndpoint     string
+	minioAccessKey    string
+	minioSecretKey    string
+	minioBucket       string
+	minioUseSSL       bool
+	builderKind       string
+	sandboxImageDir   string
+	registryAddr      string
+	buildTimeout      time.Duration
+	storeKind         string
+	storeDSN          string
+	internalToken     string
+	trivyEnabled      bool
+	sandboxRunnerAddr string
 }
 
 func loadConfig() config {
 	timeout, _ := time.ParseDuration(envOr("BUILD_TIMEOUT", "5m"))
 	return config{
-		httpAddr:        envOr("SUBMISSION_HTTP_ADDR", ":8081"),
-		maxArchiveBytes: 50 * 1024 * 1024,
-		minioEndpoint:   envOr("MINIO_ENDPOINT", "minio:9000"),
-		minioAccessKey:  envOr("MINIO_ACCESS_KEY", "minioadmin"),
-		minioSecretKey:  envOr("MINIO_SECRET_KEY", "minioadmin"),
-		minioBucket:     envOr("MINIO_BUCKET", "submissions"),
-		minioUseSSL:     envOr("MINIO_USE_SSL", "false") == "true",
-		builderKind:     envOr("BUILDER_KIND", "stub"),
-		sandboxImageDir: defaultSandboxDir(),
-		registryAddr:    envOr("REGISTRY_ADDR", "localhost:5000"),
-		buildTimeout:    timeout,
-		storeKind:       envOr("STORE_KIND", "memory"),
-		storeDSN:        envOr("STORE_DSN", "postgres://iicpc:iicpc@localhost:5432/iicpc?sslmode=disable"),
+		httpAddr:          envOr("SUBMISSION_HTTP_ADDR", ":8081"),
+		maxArchiveBytes:   50 * 1024 * 1024,
+		minioEndpoint:     envOr("MINIO_ENDPOINT", "minio:9000"),
+		minioAccessKey:    envOr("MINIO_ACCESS_KEY", "minioadmin"),
+		minioSecretKey:    envOr("MINIO_SECRET_KEY", "minioadmin"),
+		minioBucket:       envOr("MINIO_BUCKET", "submissions"),
+		minioUseSSL:       envOr("MINIO_USE_SSL", "false") == "true",
+		builderKind:       envOr("BUILDER_KIND", "stub"),
+		sandboxImageDir:   defaultSandboxDir(),
+		registryAddr:      envOr("REGISTRY_ADDR", "localhost:5000"),
+		buildTimeout:      timeout,
+		storeKind:         envOr("STORE_KIND", "memory"),
+		storeDSN:          envOr("STORE_DSN", "postgres://iicpc:iicpc@localhost:5432/iicpc?sslmode=disable"),
 		internalToken:     os.Getenv("INTERNAL_TOKEN"),
 		trivyEnabled:      envOr("TRIVY_ENABLED", "false") == "true",
 		sandboxRunnerAddr: os.Getenv("SANDBOX_RUNNER_ADDR"),

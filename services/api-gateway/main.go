@@ -80,7 +80,7 @@ func main() {
 	<-ctx.Done()
 	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	srv.Shutdown(shutCtx)
+	_ = srv.Shutdown(shutCtx)
 }
 
 type tokenReq struct {
@@ -105,7 +105,7 @@ func handleToken(cfg config) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(tokenResp{
+		_ = json.NewEncoder(w).Encode(tokenResp{
 			Token:     tok,
 			ExpiresIn: int(cfg.JWTTokenTTL.Seconds()),
 		})

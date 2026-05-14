@@ -23,7 +23,7 @@ func RequestID(next http.Handler) http.Handler {
 		id := r.Header.Get("X-Request-ID")
 		if id == "" {
 			b := make([]byte, 8)
-			rand.Read(b)
+			_, _ = rand.Read(b)
 			id = hex.EncodeToString(b)
 		}
 		w.Header().Set("X-Request-ID", id)

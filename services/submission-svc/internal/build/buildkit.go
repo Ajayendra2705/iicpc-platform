@@ -63,14 +63,14 @@ type BuildKitConfig struct {
 	Repo              store.Repository
 	Storage           storage.ObjectStore
 	Logger            *slog.Logger
-	SandboxImageDir   string        // path to sandbox-images/
-	RegistryAddr      string        // e.g. "localhost:5000"
-	ImageRepoPrefix   string        // e.g. "contestants"
-	BuildTimeout      time.Duration // 0 -> 5 minutes
-	PushAttempts      int           // 0 -> 3
-	MaxExtractedBytes int64         // 0 -> 500 MiB
-	MaxFileBytes      int64         // 0 -> 100 MiB
-	Scanner           ImageScanner  // nil -> skip
+	SandboxImageDir   string         // path to sandbox-images/
+	RegistryAddr      string         // e.g. "localhost:5000"
+	ImageRepoPrefix   string         // e.g. "contestants"
+	BuildTimeout      time.Duration  // 0 -> 5 minutes
+	PushAttempts      int            // 0 -> 3
+	MaxExtractedBytes int64          // 0 -> 500 MiB
+	MaxFileBytes      int64          // 0 -> 100 MiB
+	Scanner           ImageScanner   // nil -> skip
 	Sandbox           SandboxStarter // nil -> skip
 }
 
