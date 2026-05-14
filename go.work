@@ -2,6 +2,7 @@ go 1.22.0
 
 use (
 	./proto/gen/go
+	./samples/reference-orderbook
 	./services/aggregator
 	./services/api-gateway
 	./services/bot-coordinator
