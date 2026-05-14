@@ -58,7 +58,9 @@ func New(rps, burst float64) *IPLimiter {
 }
 
 func (il *IPLimiter) evict() {
-	for range time.Tick(time.Minute) {
+	t := time.NewTicker(time.Minute)
+	defer t.Stop()
+	for range t.C {
 		il.mu.Lock()
 		for ip, e := range il.clients {
 			if time.Since(e.seen) > 5*time.Minute {

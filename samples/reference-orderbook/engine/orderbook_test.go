@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -75,6 +76,22 @@ func TestCancelNotFound(t *testing.T) {
 	err := ob.Cancel("nonexistent")
 	if err == nil {
 		t.Fatal("want error, got nil")
+	}
+}
+
+func TestCancelEagerlyRemovesFromHeap(t *testing.T) {
+	ob := New()
+	for i := range 100 {
+		ob.Place(ord(fmt.Sprintf("b%d", i), Buy, float64(100+i), 1))
+	}
+	for i := range 100 {
+		ob.Cancel(fmt.Sprintf("b%d", i))
+	}
+	ob.mu.Lock()
+	heapLen := ob.bids.Len()
+	ob.mu.Unlock()
+	if heapLen != 0 {
+		t.Fatalf("heap should be empty after all cancels, got len=%d", heapLen)
 	}
 }
 

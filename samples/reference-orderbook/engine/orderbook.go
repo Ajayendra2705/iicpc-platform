@@ -175,10 +175,17 @@ func (ob *OrderBook) Cancel(id string) error {
 	if !ok {
 		return fmt.Errorf("order %s not found", id)
 	}
-	o.Remaining = 0 // lazy deletion; heap cleanup on next match
+	o.Remaining = 0
 	delete(ob.orders, id)
-	delete(ob.bidIndex, id)
-	delete(ob.askIndex, id)
+	// Eagerly remove from heap so it doesn't grow unbounded with cancels.
+	if e, ok := ob.bidIndex[id]; ok {
+		heap.Remove(&ob.bids, e.idx)
+		delete(ob.bidIndex, id)
+	}
+	if e, ok := ob.askIndex[id]; ok {
+		heap.Remove(&ob.asks, e.idx)
+		delete(ob.askIndex, id)
+	}
 	return nil
 }
 
@@ -188,17 +195,22 @@ type Snapshot struct {
 }
 
 func (ob *OrderBook) Snapshot() Snapshot {
+	// Copy raw entries under lock; aggregate + sort outside to minimise lock hold.
 	ob.mu.Lock()
-	defer ob.mu.Unlock()
+	bCopy := make([]*bidEntry, len(ob.bids))
+	copy(bCopy, ob.bids)
+	aCopy := make([]*askEntry, len(ob.asks))
+	copy(aCopy, ob.asks)
+	ob.mu.Unlock()
 
-	bidMap := make(map[float64]int64)
-	for _, e := range ob.bids {
+	bidMap := make(map[float64]int64, len(bCopy))
+	for _, e := range bCopy {
 		if e.o.Remaining > 0 {
 			bidMap[e.o.Price] += e.o.Remaining
 		}
 	}
-	askMap := make(map[float64]int64)
-	for _, e := range ob.asks {
+	askMap := make(map[float64]int64, len(aCopy))
+	for _, e := range aCopy {
 		if e.o.Remaining > 0 {
 			askMap[e.o.Price] += e.o.Remaining
 		}
@@ -211,8 +223,8 @@ func (ob *OrderBook) Snapshot() Snapshot {
 	for p, q := range askMap {
 		snap.Asks = append(snap.Asks, Level{Price: p, Qty: q})
 	}
-	sortLevels(snap.Bids, true)  // desc
-	sortLevels(snap.Asks, false) // asc
+	sortLevels(snap.Bids, true)
+	sortLevels(snap.Asks, false)
 	return snap
 }
 

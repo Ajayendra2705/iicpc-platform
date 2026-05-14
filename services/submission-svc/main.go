@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/build"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/sandbox"
 	httpsrv "github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/server"
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/storage"
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/store"
@@ -48,7 +49,19 @@ func main() {
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	defer rootCancel()
 
-	builder, builderRun := newBuilder(cfg, repo, objStore, logger)
+	var sandboxStarter build.SandboxStarter
+	if cfg.sandboxRunnerAddr != "" {
+		gr, err := sandbox.NewGRPC(cfg.sandboxRunnerAddr)
+		if err != nil {
+			logger.Error("init sandbox runner client", "err", err)
+			os.Exit(1)
+		}
+		defer gr.Close()
+		sandboxStarter = gr
+		logger.Info("sandbox runner configured", "addr", cfg.sandboxRunnerAddr)
+	}
+
+	builder, builderRun := newBuilder(cfg, repo, objStore, logger, sandboxStarter)
 
 	var workerWG sync.WaitGroup
 	workerWG.Add(1)
@@ -125,7 +138,7 @@ func newRepo(cfg config, log *slog.Logger) (store.Repository, func(), error) {
 	}
 }
 
-func newBuilder(cfg config, repo store.Repository, objStore storage.ObjectStore, log *slog.Logger) (build.Builder, func(context.Context)) {
+func newBuilder(cfg config, repo store.Repository, objStore storage.ObjectStore, log *slog.Logger, sb build.SandboxStarter) (build.Builder, func(context.Context)) {
 	switch strings.ToLower(cfg.builderKind) {
 	case "buildkit":
 		var scanner build.ImageScanner
@@ -145,10 +158,11 @@ func newBuilder(cfg config, repo store.Repository, objStore storage.ObjectStore,
 			ImageRepoPrefix: "contestants",
 			BuildTimeout:    cfg.buildTimeout,
 			Scanner:         scanner,
+			Sandbox:         sb,
 		})
 		return bk, bk.Run
 	case "stub", "":
-		s := build.NewStub(repo, log)
+		s := build.NewStubWithSandbox(repo, log, sb)
 		return s, s.Run
 	default:
 		log.Error("unknown BUILDER_KIND", "value", cfg.builderKind)
@@ -171,8 +185,9 @@ type config struct {
 	buildTimeout    time.Duration
 	storeKind       string
 	storeDSN        string
-	internalToken   string
-	trivyEnabled    bool
+	internalToken      string
+	trivyEnabled       bool
+	sandboxRunnerAddr  string
 }
 
 func loadConfig() config {
@@ -191,8 +206,9 @@ func loadConfig() config {
 		buildTimeout:    timeout,
 		storeKind:       envOr("STORE_KIND", "memory"),
 		storeDSN:        envOr("STORE_DSN", "postgres://iicpc:iicpc@localhost:5432/iicpc?sslmode=disable"),
-		internalToken:   os.Getenv("INTERNAL_TOKEN"),
-		trivyEnabled:    envOr("TRIVY_ENABLED", "false") == "true",
+		internalToken:     os.Getenv("INTERNAL_TOKEN"),
+		trivyEnabled:      envOr("TRIVY_ENABLED", "false") == "true",
+		sandboxRunnerAddr: os.Getenv("SANDBOX_RUNNER_ADDR"),
 	}
 }
 

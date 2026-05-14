@@ -43,6 +43,7 @@ type BuildKit struct {
 	maxExtractBytes int64
 	maxFileBytes    int64
 	scanner         ImageScanner
+	sandbox         SandboxStarter
 
 	// runCmd is injectable so tests can stub out exec.Command.
 	runCmd func(ctx context.Context, log *slog.Logger, name string, args ...string) error
@@ -70,6 +71,7 @@ type BuildKitConfig struct {
 	MaxExtractedBytes int64         // 0 -> 500 MiB
 	MaxFileBytes      int64         // 0 -> 100 MiB
 	Scanner           ImageScanner  // nil -> skip
+	Sandbox           SandboxStarter // nil -> skip
 }
 
 func NewBuildKit(cfg BuildKitConfig) *BuildKit {
@@ -105,6 +107,7 @@ func NewBuildKit(cfg BuildKitConfig) *BuildKit {
 		maxExtractBytes: cfg.MaxExtractedBytes,
 		maxFileBytes:    cfg.MaxFileBytes,
 		scanner:         cfg.Scanner,
+		sandbox:         cfg.Sandbox,
 		runCmd:          execRunCmd,
 		inFlight:        make(map[string]context.CancelFunc),
 	}
@@ -179,6 +182,12 @@ func (b *BuildKit) process(parentCtx context.Context, j job) {
 		return
 	}
 	log.Info("build complete", "image_uri", imageRef)
+
+	if b.sandbox != nil {
+		if err := b.sandbox.Start(ctx, j.submissionID, sub.ContestantID, imageRef); err != nil {
+			log.Error("sandbox start failed", "err", err)
+		}
+	}
 }
 
 func (b *BuildKit) runBuild(ctx context.Context, log *slog.Logger, sub store.Submission) (string, error) {
