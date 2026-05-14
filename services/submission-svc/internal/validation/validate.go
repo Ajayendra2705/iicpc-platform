@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/iicpc/platform/services/submission-svc/internal/store"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/store"
 )
 
 var (

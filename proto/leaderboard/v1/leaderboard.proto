@@ -4,7 +4,7 @@ package leaderboard.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/iicpc/platform/proto/gen/go/leaderboard/v1;leaderboardv1";
+option go_package = "github.com/Ajayendra2705/iicpc-platform/proto/gen/go/leaderboard/v1;leaderboardv1";
 
 service Leaderboard {
   rpc GetTopN(GetTopNRequest) returns (GetTopNResponse);

@@ -1,0 +1,150 @@
+# Namespace for contestant pods — PSA restricted enforced.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iicpc-contestants
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
+# ServiceAccount used by the sandbox-runner pod.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sandbox-runner
+  namespace: iicpc-platform
+---
+# ClusterRole: pod lifecycle permissions (create/delete/get/watch/list).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sandbox-runner
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "delete", "get", "list", "watch"]
+---
+# RoleBinding in the contestants namespace — grants the ClusterRole only there.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sandbox-runner
+  namespace: iicpc-contestants
+subjects:
+  - kind: ServiceAccount
+    name: sandbox-runner
+    namespace: iicpc-platform
+roleRef:
+  kind: ClusterRole
+  name: sandbox-runner
+  apiGroup: rbac.authorization.k8s.io
+---
+# NetworkPolicy for contestant pods:
+#   ingress  — only from bot-worker pods on the runtime port
+#   egress   — only DNS (UDP+TCP/53)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: contestant-pod-isolation
+  namespace: iicpc-contestants
+spec:
+  podSelector:
+    matchLabels:
+      app: contestant-pod
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: iicpc-platform
+          podSelector:
+            matchLabels:
+              app: bot-worker
+      ports:
+        - port: 9100
+          protocol: TCP
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+# Deployment for the sandbox-runner gRPC service itself.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox-runner
+  namespace: iicpc-platform
+  labels:
+    app: sandbox-runner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sandbox-runner
+  template:
+    metadata:
+      labels:
+        app: sandbox-runner
+    spec:
+      serviceAccountName: sandbox-runner
+      nodeSelector:
+        iicpc.io/pool: services
+      containers:
+        - name: sandbox-runner
+          image: iicpc/sandbox-runner:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grpc
+              containerPort: 9090
+          env:
+            - name: K8S_NAMESPACE
+              value: "iicpc-contestants"
+            - name: RUNTIME_CLASS
+              value: "gvisor"
+            - name: CPU_REQUEST
+              value: "500m"
+            - name: CPU_LIMIT
+              value: "1000m"
+            - name: MEMORY_REQUEST
+              value: "256Mi"
+            - name: MEMORY_LIMIT
+              value: "512Mi"
+            - name: EPHEMERAL_LIMIT
+              value: "2Gi"
+            - name: READINESS_TIMEOUT
+              value: "60s"
+            - name: GRPC_ADDR
+              value: ":9090"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandbox-runner
+  namespace: iicpc-platform
+spec:
+  selector:
+    app: sandbox-runner
+  ports:
+    - name: grpc
+      port: 9090
+      targetPort: grpc

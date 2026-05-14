@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/iicpc/platform/services/submission-svc/internal/store"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/store"
 )
 
 // Stub builder for local dev / tests without Docker. Day 3 introduces the

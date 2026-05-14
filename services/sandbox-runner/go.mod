@@ -1,3 +1,10 @@
-module github.com/iicpc/platform/services/sandbox-runner
+module github.com/Ajayendra2705/iicpc-platform/services/sandbox-runner
 
 go 1.22
+
+require (
+	google.golang.org/grpc v1.65.0
+	k8s.io/api v0.30.3
+	k8s.io/apimachinery v0.30.3
+	k8s.io/client-go v0.30.3
+)

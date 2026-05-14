@@ -1,3 +1,3 @@
-module github.com/iicpc/platform/services/aggregator
+module github.com/Ajayendra2705/iicpc-platform/services/aggregator
 
 go 1.22

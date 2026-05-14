@@ -1,4 +1,4 @@
-module github.com/iicpc/platform/proto/gen/go
+module github.com/Ajayendra2705/iicpc-platform/proto/gen/go
 
 go 1.22
 

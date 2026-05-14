@@ -3,7 +3,7 @@ package validation
 import (
 	"testing"
 
-	"github.com/iicpc/platform/services/submission-svc/internal/store"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/store"
 )
 
 func TestValidateRequest(t *testing.T) {

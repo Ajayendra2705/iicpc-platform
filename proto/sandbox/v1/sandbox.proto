@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package sandbox.v1;
+
+option go_package = "github.com/Ajayendra2705/iicpc-platform/proto/gen/go/sandbox/v1;sandboxv1";
+
+service SandboxRunner {
+  rpc RunSandbox(RunSandboxRequest) returns (RunSandboxResponse);
+  rpc StopSandbox(StopSandboxRequest) returns (StopSandboxResponse);
+  rpc GetSandboxStatus(GetSandboxStatusRequest) returns (GetSandboxStatusResponse);
+}
+
+enum SandboxPhase {
+  SANDBOX_PHASE_UNSPECIFIED = 0;
+  SANDBOX_PHASE_PENDING = 1;
+  SANDBOX_PHASE_RUNNING = 2;
+  SANDBOX_PHASE_SUCCEEDED = 3;
+  SANDBOX_PHASE_FAILED = 4;
+}
+
+message RunSandboxRequest {
+  string submission_id = 1;
+  string image_uri = 2;
+  string contestant_id = 3;
+  int32 runtime_port = 4;
+}
+
+message RunSandboxResponse {
+  string run_id = 1;
+  string pod_ip = 2;
+  int32 runtime_port = 3;
+  SandboxPhase phase = 4;
+}
+
+message StopSandboxRequest {
+  string run_id = 1;
+}
+
+message StopSandboxResponse {
+  bool ok = 1;
+}
+
+message GetSandboxStatusRequest {
+  string run_id = 1;
+}
+
+message GetSandboxStatusResponse {
+  string run_id = 1;
+  string pod_ip = 2;
+  SandboxPhase phase = 3;
+}

@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/iicpc/platform/services/submission-svc/internal/build"
-	"github.com/iicpc/platform/services/submission-svc/internal/store"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/build"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/store"
 )
 
 type fakeStorage struct {

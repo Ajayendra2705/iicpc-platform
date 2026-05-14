@@ -13,11 +13,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/iicpc/platform/services/submission-svc/internal/build"
-	"github.com/iicpc/platform/services/submission-svc/internal/httpx"
-	"github.com/iicpc/platform/services/submission-svc/internal/storage"
-	"github.com/iicpc/platform/services/submission-svc/internal/store"
-	"github.com/iicpc/platform/services/submission-svc/internal/validation"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/build"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/httpx"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/storage"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/store"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/validation"
 )
 
 type Config struct {

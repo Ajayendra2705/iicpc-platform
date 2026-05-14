@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/iicpc/platform/services/submission-svc/internal/storage"
-	"github.com/iicpc/platform/services/submission-svc/internal/store"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/storage"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/store"
 )
 
 // Default extraction caps. A 50MB compressed archive should never expand

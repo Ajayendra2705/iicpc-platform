@@ -13,10 +13,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/iicpc/platform/services/submission-svc/internal/build"
-	httpsrv "github.com/iicpc/platform/services/submission-svc/internal/server"
-	"github.com/iicpc/platform/services/submission-svc/internal/storage"
-	"github.com/iicpc/platform/services/submission-svc/internal/store"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/build"
+	httpsrv "github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/server"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/storage"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/store"
 )
 
 func main() {

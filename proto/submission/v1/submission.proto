@@ -4,7 +4,7 @@ package submission.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/iicpc/platform/proto/gen/go/submission/v1;submissionv1";
+option go_package = "github.com/Ajayendra2705/iicpc-platform/proto/gen/go/submission/v1;submissionv1";
 
 service SubmissionService {
   rpc CreateSubmission(CreateSubmissionRequest) returns (CreateSubmissionResponse);
