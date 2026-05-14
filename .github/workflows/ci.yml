@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  GOPRIVATE: github.com/Ajayendra2705
+  GONOSUMDB: github.com/Ajayendra2705
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,6 +31,9 @@ jobs:
           - services/validator
     steps:
       - uses: actions/checkout@v4
+
+      - name: Configure private module access
+        run: git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
 
       - uses: actions/setup-go@v5
         with:
@@ -74,13 +81,23 @@ jobs:
           - services/validator
     steps:
       - uses: actions/checkout@v4
+
+      - name: Configure private module access
+        run: git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+
       - uses: actions/setup-go@v5
         with:
           go-version: "stable"
           cache: true
           cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - name: Download dependencies
+        working-directory: ${{ matrix.module }}
+        run: go mod download
+
       - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+          install-mode: goinstall
           working-directory: ${{ matrix.module }}
           args: --timeout=5m
