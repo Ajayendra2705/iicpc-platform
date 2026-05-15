@@ -1,12 +1,58 @@
 package gen_test
 
 import (
+	"context"
 	"math"
 	"testing"
 	"time"
 
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/gen"
 )
+
+func TestJitterInRange(t *testing.T) {
+	const maxJitter = 5 * time.Millisecond
+	a := gen.NewArrivals(gen.ArrivalUniform, 100).WithJitter(maxJitter) // 10ms base
+	base := 10 * time.Millisecond
+	for range 500 {
+		got := a.Next()
+		if got < base || got >= base+maxJitter+time.Millisecond {
+			t.Fatalf("jitter out of range: got %v want [%v, %v)", got, base, base+maxJitter)
+		}
+	}
+}
+
+func TestJitterZeroNoEffect(t *testing.T) {
+	a := gen.NewArrivals(gen.ArrivalUniform, 100) // no jitter
+	want := 10 * time.Millisecond
+	for range 100 {
+		if got := a.Next(); got != want {
+			t.Fatalf("zero jitter changed interval: got %v want %v", got, want)
+		}
+	}
+}
+
+func TestBurstActiveReducesInterval(t *testing.T) {
+	const rps = 10.0 // 100ms base interval
+	const mult = 10  // burst → 10ms interval
+	a := gen.NewArrivals(gen.ArrivalUniform, rps)
+	a.StartBurst(context.Background(), time.Hour, time.Hour, mult) // configure burst multiplier without triggering
+	a.SetBurstActive(true)
+	for range 50 {
+		got := a.Next()
+		if got >= 100*time.Millisecond {
+			t.Fatalf("burst not reducing interval: got %v want < 100ms", got)
+		}
+	}
+}
+
+func TestBurstInactiveNormal(t *testing.T) {
+	a := gen.NewArrivals(gen.ArrivalUniform, 10) // 100ms
+	a.StartBurst(context.Background(), time.Hour, time.Hour, 10)
+	// burst not triggered — interval should be full 100ms
+	if got := a.Next(); got != 100*time.Millisecond {
+		t.Fatalf("inactive burst changed interval: got %v", got)
+	}
+}
 
 func TestUniformArrivalIsConstant(t *testing.T) {
 	a := gen.NewArrivals(gen.ArrivalUniform, 100) // 10ms interval

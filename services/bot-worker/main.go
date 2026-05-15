@@ -34,6 +34,11 @@ type config struct {
 	fixHost         string
 	fixPort         int
 	arrivalMode     string // uniform | poisson
+	jitterMs        int    // max uniform jitter per arrival (0 = disabled)
+	burstEnabled    bool   // enable periodic 10× burst
+	burstMultiplier int    // rate multiplier during burst
+	burstEveryS     int    // seconds between burst events
+	burstDurationMs int    // burst duration in milliseconds
 }
 
 func loadConfig() config {
@@ -51,6 +56,11 @@ func loadConfig() config {
 		fixHost:         envOr("FIX_HOST", "localhost"),
 		fixPort:         envInt("FIX_PORT", 5001),
 		arrivalMode:     envOr("ARRIVAL_MODE", "uniform"),
+		jitterMs:        envInt("JITTER_MS", 0),
+		burstEnabled:    envOr("BURST_ENABLED", "false") == "true",
+		burstMultiplier: envInt("BURST_MULTIPLIER", 10),
+		burstEveryS:     envInt("BURST_EVERY_S", 30),
+		burstDurationMs: envInt("BURST_DURATION_MS", 100),
 	}
 }
 
@@ -66,10 +76,21 @@ func main() {
 		PriceSigma:  cfg.priceSigma,
 		CancelRatio: cfg.cancelRatio,
 	}
-	arrivals := gen.NewArrivals(gen.ArrivalMode(cfg.arrivalMode), cfg.ordersPerSecond)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
+
+	arrivals := gen.NewArrivals(gen.ArrivalMode(cfg.arrivalMode), cfg.ordersPerSecond)
+	if cfg.jitterMs > 0 {
+		arrivals = arrivals.WithJitter(time.Duration(cfg.jitterMs) * time.Millisecond)
+	}
+	if cfg.burstEnabled {
+		arrivals.StartBurst(ctx,
+			time.Duration(cfg.burstEveryS)*time.Second,
+			time.Duration(cfg.burstDurationMs)*time.Millisecond,
+			cfg.burstMultiplier,
+		)
+	}
 
 	// best-effort clock offset probe; non-fatal if target has no /time endpoint
 	probeCtx, probeCancel := context.WithTimeout(ctx, 3*time.Second)

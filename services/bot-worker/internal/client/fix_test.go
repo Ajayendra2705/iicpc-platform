@@ -110,6 +110,36 @@ func TestFixAppFromAppIgnoresMissingClOrdID(t *testing.T) {
 	_ = app.FromApp(msg, quickfix.SessionID{})
 }
 
+// Cancel's ExecReport (35=8) carries the cancel clOrdID in tag 11 — same routing.
+func TestFixAppFromAppRoutesCancelAck(t *testing.T) {
+	app := newFixApp(testLogger())
+	ch := make(chan fixResult, 1)
+	app.mu.Lock()
+	app.pending["cxl-001"] = ch
+	app.mu.Unlock()
+
+	msg := quickfix.NewMessage()
+	msg.Header.SetField(tagMsgType, quickfix.FIXString("8"))
+	msg.Body.SetField(tagClOrdID, quickfix.FIXString("cxl-001"))
+	msg.Body.SetField(tagOrderID, quickfix.FIXString("exch-999"))
+	_ = app.FromApp(msg, quickfix.SessionID{})
+
+	select {
+	case res := <-ch:
+		if res.orderID != "exch-999" {
+			t.Errorf("cancel ack orderID: got %q want exch-999", res.orderID)
+		}
+	default:
+		t.Fatal("cancel ack not routed")
+	}
+}
+
+func TestOrigClOrdIDTagValue(t *testing.T) {
+	if tagOrigClOrdID != 41 {
+		t.Errorf("tagOrigClOrdID: got %d want 41", tagOrigClOrdID)
+	}
+}
+
 func TestFIXClientImplementsOrderClient(t *testing.T) {
 	// Compile-time check that *FIXClient satisfies OrderClient.
 	var _ OrderClient = (*FIXClient)(nil)

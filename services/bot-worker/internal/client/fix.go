@@ -16,6 +16,7 @@ import (
 const (
 	tagMsgType      quickfix.Tag = 35
 	tagClOrdID      quickfix.Tag = 11
+	tagOrigClOrdID  quickfix.Tag = 41
 	tagSymbol       quickfix.Tag = 55
 	tagSide         quickfix.Tag = 54
 	tagOrdType      quickfix.Tag = 40
@@ -219,10 +220,48 @@ func (c *FIXClient) PlaceOrder(ctx context.Context, side string, price float64, 
 	}
 }
 
-// CancelOrder via FIX is not yet implemented; returns 0, nil (no-op).
-// OrderCancelRequest (35=F) support is planned for D13.
-func (c *FIXClient) CancelOrder(_ context.Context, _ string) (int64, error) {
-	return 0, nil
+// CancelOrder sends a FIX 4.4 OrderCancelRequest (35=F) and waits for
+// an ExecutionReport acknowledging the cancel.
+func (c *FIXClient) CancelOrder(ctx context.Context, origOrderID string) (int64, error) {
+	clOrdID := fmt.Sprintf("cxl-%d", c.seq.Add(1))
+
+	msg := quickfix.NewMessage()
+	msg.Header.SetField(tagMsgType, quickfix.FIXString("F"))
+	msg.Body.SetField(tagClOrdID, quickfix.FIXString(clOrdID))
+	msg.Body.SetField(tagOrigClOrdID, quickfix.FIXString(origOrderID))
+	msg.Body.SetField(tagSymbol, quickfix.FIXString(c.symbol))
+	msg.Body.SetField(tagSide, quickfix.FIXString("1"))
+	msg.Body.SetField(tagOrderQty, quickfix.FIXString("1"))
+	msg.Body.SetField(tagTransactTime, quickfix.FIXString(time.Now().UTC().Format("20060102-15:04:05.000")))
+
+	ch := make(chan fixResult, 1)
+	c.app.mu.Lock()
+	c.app.pending[clOrdID] = ch
+	sessionID := c.app.sessionID
+	c.app.mu.Unlock()
+
+	start := time.Now()
+	if err := quickfix.SendToTarget(msg, sessionID); err != nil {
+		c.app.mu.Lock()
+		delete(c.app.pending, clOrdID)
+		c.app.mu.Unlock()
+		return 0, fmt.Errorf("fix cancel send: %w", err)
+	}
+
+	select {
+	case <-ch:
+		return time.Since(start).Nanoseconds(), nil
+	case <-ctx.Done():
+		c.app.mu.Lock()
+		delete(c.app.pending, clOrdID)
+		c.app.mu.Unlock()
+		return 0, ctx.Err()
+	case <-time.After(5 * time.Second):
+		c.app.mu.Lock()
+		delete(c.app.pending, clOrdID)
+		c.app.mu.Unlock()
+		return 0, fmt.Errorf("fix: CancelAck timeout for %s", clOrdID)
+	}
 }
 
 func (c *FIXClient) Close() error {
