@@ -60,7 +60,7 @@ func TestFixAppFromAppRoutesExecutionReport(t *testing.T) {
 	msg.Body.SetField(tagClOrdID, quickfix.FIXString("ord-001"))
 	msg.Body.SetField(tagOrderID, quickfix.FIXString("exch-999"))
 
-	app.FromApp(msg, quickfix.SessionID{})
+	_ = app.FromApp(msg, quickfix.SessionID{})
 
 	select {
 	case res := <-ch:
@@ -90,7 +90,7 @@ func TestFixAppFromAppIgnoresNonExecutionReport(t *testing.T) {
 	// Send a Heartbeat (35=0) — should be ignored.
 	msg := quickfix.NewMessage()
 	msg.Header.SetField(tagMsgType, quickfix.FIXString("0"))
-	app.FromApp(msg, quickfix.SessionID{})
+	_ = app.FromApp(msg, quickfix.SessionID{})
 
 	select {
 	case <-ch:
@@ -107,7 +107,7 @@ func TestFixAppFromAppIgnoresMissingClOrdID(t *testing.T) {
 	// no ClOrdID set
 
 	// must not panic
-	app.FromApp(msg, quickfix.SessionID{})
+	_ = app.FromApp(msg, quickfix.SessionID{})
 }
 
 func TestFIXClientImplementsOrderClient(t *testing.T) {
