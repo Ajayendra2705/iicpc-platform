@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/client"
+	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/clocksync"
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/gen"
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/stats"
 )
@@ -69,6 +70,16 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
+
+	// best-effort clock offset probe; non-fatal if target has no /time endpoint
+	probeCtx, probeCancel := context.WithTimeout(ctx, 3*time.Second)
+	if offset, err := clocksync.EstimateOffset(probeCtx, &http.Client{Timeout: 3 * time.Second}, cfg.targetURL); err != nil {
+		logger.Warn("clock probe failed", "err", err)
+	} else {
+		rec.SetClockOffset(offset)
+		logger.Info("clock offset estimated", "offset_ns", offset)
+	}
+	probeCancel()
 
 	factory, err := makeWorkerFactory(ctx, cfg, logger)
 	if err != nil {
@@ -155,6 +166,10 @@ func buildServer(addr string, rec *stats.Recorder) *http.Server {
 		snap := rec.Snapshot()
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(snap)
+	})
+	mux.HandleFunc("GET /time", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]int64{"now_ns": time.Now().UnixNano()})
 	})
 	return &http.Server{
 		Addr:              addr,

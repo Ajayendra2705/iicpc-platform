@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: chrony
+  namespace: iicpc
+  labels:
+    app: chrony
+spec:
+  selector:
+    matchLabels:
+      app: chrony
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: chrony
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+      priorityClassName: system-node-critical
+      containers:
+        - name: chrony
+          image: publicecr.aws/amazonlinux/amazonlinux:2023
+          command:
+            - /bin/bash
+            - -c
+            - |
+              dnf install -y chrony && \
+              cat > /etc/chrony.conf <<'EOF'
+              pool time.aws.com iburst maxsources 4
+              pool pool.ntp.org iburst maxsources 4
+              driftfile /var/lib/chrony/drift
+              makestep 1.0 3
+              rtcsync
+              logdir /var/log/chrony
+              EOF
+              chronyd -f /etc/chrony.conf -d
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: chrony-drift
+              mountPath: /var/lib/chrony
+      volumes:
+        - name: chrony-drift
+          hostPath:
+            path: /var/lib/chrony
+            type: DirectoryOrCreate
