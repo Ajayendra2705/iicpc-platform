@@ -32,6 +32,7 @@ type config struct {
 	wsPath          string // WebSocket path appended to targetURL
 	fixHost         string
 	fixPort         int
+	arrivalMode     string // uniform | poisson
 }
 
 func loadConfig() config {
@@ -48,6 +49,7 @@ func loadConfig() config {
 		wsPath:          envOr("WS_PATH", "/ws"),
 		fixHost:         envOr("FIX_HOST", "localhost"),
 		fixPort:         envInt("FIX_PORT", 5001),
+		arrivalMode:     envOr("ARRIVAL_MODE", "uniform"),
 	}
 }
 
@@ -63,7 +65,7 @@ func main() {
 		PriceSigma:  cfg.priceSigma,
 		CancelRatio: cfg.cancelRatio,
 	}
-	interval := time.Duration(float64(time.Second) / cfg.ordersPerSecond)
+	arrivals := gen.NewArrivals(gen.ArrivalMode(cfg.arrivalMode), cfg.ordersPerSecond)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
@@ -85,7 +87,7 @@ func main() {
 				return
 			}
 			defer cli.Close()
-			runWorker(ctx, id, cli, gen.New(genCfg), rec, interval, logger)
+			runWorker(ctx, id, cli, gen.New(genCfg), rec, arrivals, logger)
 		}(i)
 	}
 
@@ -97,6 +99,7 @@ func main() {
 			"ops", cfg.ordersPerSecond,
 			"workers", cfg.numWorkers,
 			"worker_id", cfg.workerID,
+			"arrival_mode", cfg.arrivalMode,
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("http server", "err", err)
@@ -166,20 +169,22 @@ func runWorker(
 	cli client.OrderClient,
 	g *gen.Generator,
 	rec *stats.Recorder,
-	interval time.Duration,
+	arrivals *gen.Arrivals,
 	log *slog.Logger,
 ) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	timer := time.NewTimer(arrivals.Next())
+	defer timer.Stop()
 
 	var liveIDs []string
-	log.Info("bot worker started", "id", id, "interval", interval)
+	log.Info("bot worker started", "id", id)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
+			timer.Reset(arrivals.Next())
+
 			// opportunistically cancel a live order
 			if len(liveIDs) > 0 && g.ShouldCancel() {
 				pick := liveIDs[0]
@@ -193,7 +198,7 @@ func runWorker(
 				}
 			}
 
-			// place a new order every tick
+			// place a new order on every arrival
 			ord := g.Next()
 			oid, latNs, err := cli.PlaceOrder(ctx, string(ord.Side), ord.Price, ord.Qty)
 			if err != nil {
