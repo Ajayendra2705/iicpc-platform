@@ -2,10 +2,10 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 6 completion. **Day 7 (buffer/catch-up) or Day 8 (bot fleet) next.**
+> Last updated after Day 13 completion. **Day 14 (buffer + 1K load test) next.**
 
 **GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
-**CI:** GitHub Actions, all jobs green as of commit `018b413` (Day 4; Days 5–6 add no CI-breaking changes). Workflow file: `.github/workflows/ci.yml`. Per-module matrix (test + golangci-lint) + buf lint.
+**CI:** GitHub Actions, all jobs green as of commit `9fbac7c` (Day 13). Workflow file: `.github/workflows/ci.yml`. Per-module matrix (test + golangci-lint) + buf lint.
 
 ---
 
@@ -127,13 +127,17 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | **4** | **sandbox-runner:** K8s pod spawn with gVisor runtimeClassName, NetworkPolicy isolation, cgroup resource limits | ✅ done | `018b413` |
 | **5** | **Reference orderbook:** heap-based price-time priority matching engine, HTTP server, 8 unit tests | ✅ done | `f53a549` |
 | **6** | **api-gateway:** stdlib HS256 JWT, per-IP token bucket, reverse proxy to submission-svc. 11 tests | ✅ done | `fd77674` |
-| 7 | Buffer / catch-up | ⏳ **next** |  |
-| 8–14 | Bot fleet: bot-worker + bot-coordinator, REST/WS/FIX, Poisson order gen | pending |  |
-| 7 | Buffer / catch-up | pending |  |
-| 8-14 | Bot fleet: bot-worker + bot-coordinator, REST/WS/FIX, Poisson order gen | pending |  |
-| 15-21 | Telemetry: ingester + aggregator (HDR histograms) + validator + leaderboard (Redis ZSET) | pending |  |
-| 22-28 | Frontend (Next.js), Terraform AWS, Helm charts, chaos tests | pending |  |
-| 29-32 | Docs polish, demo video, submission | pending |  |
+| **7** | **Buffer:** sandbox wiring, pipeline integration test, CI fixes (go-version, golangci-lint, GOPRIVATE) | ✅ done | `cbd2834` |
+| **8** | **bot-worker:** REST load generator, stats recorder (P50/P90/P99), /healthz + /metrics | ✅ done | `f9a8625` |
+| **9** | **bot-worker:** WebSocket client, FIX 4.4 client (QuickFIX-Go), multi-protocol via PROTOCOL env | ✅ done | `8ea33e6` |
+| **10** | **bot-worker:** Poisson arrivals (inverse-CDF), timer-based worker loop, gen package | ✅ done | `effb317` |
+| **11** | **bot-coordinator:** K8s Job spawner (client-go), StubSpawner, HTTP API (POST/GET/DELETE /benchmarks), graceful shutdown | ✅ done | `b159754` |
+| **12** | **Clock sync:** `clocksync.EstimateOffset` (NTP midpoint), GET /time endpoint, `clock_offset_ns` in /metrics, chrony DaemonSet manifest | ✅ done | `a15c97a` |
+| **13** | **Burst + jitter + FIX cancel:** `StartBurst` (10× for 100ms), `WithJitter` (0–5ms), FIX `OrderCancelRequest` (35=F) | ✅ done | `9fbac7c` |
+| **14** | Buffer + load test: 1K bots → reference orderbook, no errors | ⏳ **next** | |
+| 15–21 | Telemetry: ingester + aggregator (HDR histograms) + validator + leaderboard (Redis ZSET) | pending | |
+| 22–28 | Frontend (Next.js), Terraform AWS, Helm charts, chaos tests | pending | |
+| 29–32 | Docs polish, demo video, submission | pending | |
 
 **Current branch:** `main`. **Default PR base:** `main`.
 
@@ -284,11 +288,87 @@ curl http://localhost:8080/submissions/<id>
 
 ---
 
-## 11. What's Next (Day 7 / Day 8)
+## 11. What's Next (Day 14)
 
-Day 7 is a buffer day. If user says `"go"`, proceed directly to **Day 8: bot-worker** (REST load gen, configurable order rate, Poisson arrivals).
+Day 14 is a buffer + load-test day. Goal: run 1 000 bot goroutines against the reference orderbook, confirm zero errors, measure P99 latency, commit results.
+
+Steps (when user says `"go"`):
+1. Start reference-orderbook: `cd samples/reference-orderbook && go run .`
+2. Start bot-worker with `NUM_WORKERS=1000 TARGET_URL=http://localhost:$RUNTIME_PORT ARRIVAL_MODE=poisson ORDERS_PER_SECOND=50`
+3. After 30s, hit `/metrics` — check `errors == 0`, note P50/P90/P99.
+4. Optionally enable burst: `BURST_ENABLED=true BURST_EVERY_S=10 BURST_DURATION_MS=100`
 
 **Do NOT start without explicit `"go"` from user.**
+
+---
+
+## 11e. bot-worker — Detailed State (Days 8–13 complete)
+
+**Entry:** `services/bot-worker/main.go`. Multi-protocol load generator.
+
+**Config env vars:**
+| Var | Default | Notes |
+|---|---|---|
+| `HTTP_ADDR` | `:9090` | /healthz + /metrics + /time |
+| `TARGET_URL` | `http://localhost:8082` | contestant pod base URL |
+| `PROTOCOL` | `rest` | `rest` \| `ws` \| `fix` |
+| `ORDERS_PER_SECOND` | `10` | mean rate |
+| `NUM_WORKERS` | `1` | concurrent goroutines |
+| `ARRIVAL_MODE` | `uniform` | `uniform` \| `poisson` |
+| `JITTER_MS` | `0` | max uniform jitter per arrival (ms) |
+| `BURST_ENABLED` | `false` | periodic 10× spike |
+| `BURST_MULTIPLIER` | `10` | burst rate multiplier |
+| `BURST_EVERY_S` | `30` | seconds between bursts |
+| `BURST_DURATION_MS` | `100` | burst duration |
+| `MID_PRICE` | `100` | order price center |
+| `PRICE_SIGMA` | `1.0` | price std dev |
+| `CANCEL_RATIO` | `0.70` | fraction of events that try a cancel |
+| `WORKER_ID` | `bot-0` | FIX SenderCompID prefix |
+| `WS_PATH` | `/ws` | WebSocket path appended to TARGET_URL |
+| `FIX_HOST` | `localhost` | FIX acceptor host |
+| `FIX_PORT` | `5001` | FIX acceptor port |
+
+**Internal packages:**
+- `internal/gen`: `Generator` (price/side/qty/cancelRatio), `Arrivals` (uniform/Poisson + jitter + burst)
+- `internal/client`: `OrderClient` interface; `REST`, `WSClient`, `FIXClient` implementations
+- `internal/stats`: `Recorder` (P50/P90/P99/TPS, atomic, copy-sort), `Snapshot` JSON with `clock_offset_ns`
+- `internal/clocksync`: `EstimateOffset(ctx, *http.Client, url)` — NTP midpoint formula against `/time`
+
+**FIX:** QuickFIX-Go v0.9.10. `NewOrderSingle` (35=D), `OrderCancelRequest` (35=F, tag-41 OrigClOrdID). Async ExecutionReport routing via `pending map[clOrdID → chan fixResult]`. 5s timeout guard.
+
+**HTTP endpoints:** `GET /healthz`, `GET /metrics` (JSON Snapshot), `GET /time` (`{"now_ns": <unix_ns>}`)
+
+**Tests:** 5 packages, all pass. Key: `client/*_test.go` (REST/WS/FIX/clocksync), `gen/arrival_test.go` (Poisson CV, jitter range, burst), `stats/recorder_test.go`.
+
+---
+
+## 11f. bot-coordinator — Detailed State (Day 11 complete)
+
+**Entry:** `services/bot-coordinator/main.go`. Spawns bot-worker K8s Jobs, exposes HTTP control plane.
+
+**Config env vars:**
+| Var | Default | Notes |
+|---|---|---|
+| `BOT_COORDINATOR_ADDR` | `:8083` | |
+| `SPAWNER_KIND` | `stub` | `stub` (in-memory) \| `k8s` |
+| `K8S_NAMESPACE` | `iicpc` | namespace for bot Jobs |
+| `BOT_WORKER_IMAGE` | `localhost:5000/bot-worker:latest` | |
+| `KUBECONFIG` | `` | empty = in-cluster config |
+
+**HTTP API:**
+- `POST /benchmarks` body `{benchmark_id, target_url, num_workers, orders_per_second, protocol, arrival_mode, duration_seconds}` → 201 `{benchmark_id}` / 409 duplicate / 400 missing fields
+- `GET /benchmarks/{id}` → `{active, succeeded, failed, phase}`
+- `DELETE /benchmarks/{id}` → 204 / 404
+
+**K8s Job spec:** `parallelism=completions=num_workers`, `RestartPolicy=Never`, `TTLSecondsAfterFinished=300`, `ActiveDeadlineSeconds=duration+60`, 100m/64Mi requests, 500m/256Mi limits.
+
+**Tests:** 14 tests across `internal/spawn` (6) and `internal/server` (8).
+
+---
+
+## 11g. infra/manifests additions (Days 11–12)
+
+- `chrony-daemonset.yaml` — DaemonSet syncing all nodes to `time.aws.com` + `pool.ntp.org`. `hostNetwork: true`, privileged, `system-node-critical` priority.
 
 ---
 
@@ -380,7 +460,7 @@ Run these to verify state:
 
 ```powershell
 git log --oneline -10
-# expect (newest first): fd77674, 8d75f14, f53a549, 79bff8e, 018b413, 9064257, 117baca, cf4a017, 04a7079, 57f3de1
+# expect (newest first): 9fbac7c, a15c97a, b159754, effb317, 8ea33e6, f9a8625, cbd2834, fd77674, f53a549, 018b413
 
 git status --short
 # expect: clean except .claude/ and IDEATION_IMPLEMENTATION_PIPELINE.md (untracked, intentional)
