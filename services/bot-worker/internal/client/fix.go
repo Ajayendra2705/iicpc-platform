@@ -27,7 +27,6 @@ const (
 
 type fixResult struct {
 	orderID string
-	latNs   int64
 }
 
 // fixApp implements quickfix.Application and routes inbound ExecutionReports
@@ -49,9 +48,9 @@ func newFixApp(log *slog.Logger) *fixApp {
 	}
 }
 
-func (a *fixApp) OnCreate(_ quickfix.SessionID)                                             {}
-func (a *fixApp) ToAdmin(_ *quickfix.Message, _ quickfix.SessionID)                         {}
-func (a *fixApp) ToApp(_ *quickfix.Message, _ quickfix.SessionID) error                     { return nil }
+func (a *fixApp) OnCreate(_ quickfix.SessionID)                         {}
+func (a *fixApp) ToAdmin(_ *quickfix.Message, _ quickfix.SessionID)     {}
+func (a *fixApp) ToApp(_ *quickfix.Message, _ quickfix.SessionID) error { return nil }
 func (a *fixApp) FromAdmin(_ *quickfix.Message, _ quickfix.SessionID) quickfix.MessageRejectError {
 	return nil
 }

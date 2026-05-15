@@ -137,4 +137,3 @@ func TestFIXConfigDefaults(t *testing.T) {
 		t.Errorf("TargetPort default: got %d", cfg.TargetPort)
 	}
 }
-
