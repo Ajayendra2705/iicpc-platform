@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -26,6 +28,10 @@ type config struct {
 	priceSigma      float64
 	cancelRatio     float64
 	workerID        string
+	protocol        string // rest | ws | fix
+	wsPath          string // WebSocket path appended to targetURL
+	fixHost         string
+	fixPort         int
 }
 
 func loadConfig() config {
@@ -38,6 +44,10 @@ func loadConfig() config {
 		priceSigma:      envFloat("PRICE_SIGMA", 1.0),
 		cancelRatio:     envFloat("CANCEL_RATIO", 0.70),
 		workerID:        envOr("WORKER_ID", "bot-0"),
+		protocol:        envOr("PROTOCOL", "rest"),
+		wsPath:          envOr("WS_PATH", "/ws"),
+		fixHost:         envOr("FIX_HOST", "localhost"),
+		fixPort:         envInt("FIX_PORT", 5001),
 	}
 }
 
@@ -48,7 +58,6 @@ func main() {
 	cfg := loadConfig()
 
 	rec := stats.New()
-	cli := client.New(client.Config{BaseURL: cfg.targetURL, Timeout: 5 * time.Second})
 	genCfg := gen.Config{
 		MidPrice:    cfg.midPrice,
 		PriceSigma:  cfg.priceSigma,
@@ -59,11 +68,23 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
+	factory, err := makeWorkerFactory(ctx, cfg, logger)
+	if err != nil {
+		logger.Error("build client factory", "err", err)
+		os.Exit(1)
+	}
+
 	var wg sync.WaitGroup
 	for i := 0; i < cfg.numWorkers; i++ {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
+			cli, err := factory(ctx)
+			if err != nil {
+				logger.Error("create client", "id", id, "err", err)
+				return
+			}
+			defer cli.Close()
 			runWorker(ctx, id, cli, gen.New(genCfg), rec, interval, logger)
 		}(i)
 	}
@@ -89,6 +110,39 @@ func main() {
 	wg.Wait()
 }
 
+// makeWorkerFactory returns a function that creates an OrderClient for each worker.
+// REST/FIX return the same shared client; WS creates a new connection per worker.
+func makeWorkerFactory(ctx context.Context, cfg config, log *slog.Logger) (func(context.Context) (client.OrderClient, error), error) {
+	switch strings.ToLower(cfg.protocol) {
+	case "rest", "":
+		cli := client.New(client.Config{BaseURL: cfg.targetURL, Timeout: 5 * time.Second})
+		return func(_ context.Context) (client.OrderClient, error) { return cli, nil }, nil
+
+	case "ws":
+		wsURL := cfg.targetURL + cfg.wsPath
+		return func(ctx context.Context) (client.OrderClient, error) {
+			return client.DialWS(ctx, wsURL)
+		}, nil
+
+	case "fix":
+		cli, err := client.NewFIX(client.FIXConfig{
+			TargetHost:   cfg.fixHost,
+			TargetPort:   cfg.fixPort,
+			SenderCompID: cfg.workerID,
+		}, log)
+		if err != nil {
+			return nil, fmt.Errorf("new FIX client: %w", err)
+		}
+		if err := cli.Connect(ctx); err != nil {
+			return nil, fmt.Errorf("FIX connect: %w", err)
+		}
+		return func(_ context.Context) (client.OrderClient, error) { return cli, nil }, nil
+
+	default:
+		return nil, fmt.Errorf("unknown PROTOCOL %q (want rest|ws|fix)", cfg.protocol)
+	}
+}
+
 func buildServer(addr string, rec *stats.Recorder) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +163,7 @@ func buildServer(addr string, rec *stats.Recorder) *http.Server {
 func runWorker(
 	ctx context.Context,
 	id int,
-	cli *client.REST,
+	cli client.OrderClient,
 	g *gen.Generator,
 	rec *stats.Recorder,
 	interval time.Duration,

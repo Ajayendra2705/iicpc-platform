@@ -70,6 +70,8 @@ func (c *REST) PlaceOrder(ctx context.Context, side string, price float64, qty i
 	return pr.ID, latNs, nil
 }
 
+func (c *REST) Close() error { return nil }
+
 // CancelOrder cancels an existing order by ID.
 // Returns round-trip latency in nanoseconds and any error.
 func (c *REST) CancelOrder(ctx context.Context, id string) (latNs int64, err error) {

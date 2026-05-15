@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/client"
 )
@@ -53,6 +54,7 @@ func TestCancelOrder(t *testing.T) {
 		if r.Method != http.MethodDelete {
 			t.Errorf("unexpected method: %s", r.Method)
 		}
+		time.Sleep(time.Millisecond) // guarantee measurable latency on Windows
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
