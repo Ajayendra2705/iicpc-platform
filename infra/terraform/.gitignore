@@ -1,0 +1,26 @@
+# Local .terraform directories
+.terraform/
+.terraform.lock.hcl
+
+# .tfstate files (state should live in S3+DynamoDB, not VCS)
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Real variable files (only the .example is committed)
+*.tfvars
+*.tfvars.json
+!terraform.tfvars.example
+
+# Override files — local-only customization
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration
+.terraformrc
+terraform.rc

@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars (gitignored) and edit. Keep db_password out of VCS.
+#
+# Or set via env vars:
+#   $env:TF_VAR_db_password = "..."
+#
+region       = "ap-south-1"
+environment  = "staging"
+cluster_name = "iicpc-platform"
+k8s_version  = "1.30"
+
+# Secrets — DO NOT commit real values
+db_password = "change-me-32-char-min"
