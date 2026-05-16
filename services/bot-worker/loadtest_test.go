@@ -17,6 +17,7 @@ import (
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/client"
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/gen"
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/stats"
+	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/telemetry"
 )
 
 // TestLoadConcurrentWorkers drives N workers against a mock orderbook for
@@ -61,7 +62,7 @@ func TestLoadConcurrentWorkers(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			g := gen.New(gen.Config{MidPrice: 100, PriceSigma: 1, CancelRatio: 0.5})
-			runWorker(ctx, id, cli, g, rec, arrivals, log)
+			runWorker(ctx, id, cli, g, rec, arrivals, telemetry.NewStub(), "test", "bot-test", log)
 		}(i)
 	}
 	wg.Wait()
@@ -113,7 +114,7 @@ func TestLoadBurstMode(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			g := gen.New(gen.Config{MidPrice: 100, PriceSigma: 1, CancelRatio: 0.3})
-			runWorker(ctx, id, cli, g, rec, arrivals, log)
+			runWorker(ctx, id, cli, g, rec, arrivals, telemetry.NewStub(), "test", "bot-test", log)
 		}(i)
 	}
 	wg.Wait()

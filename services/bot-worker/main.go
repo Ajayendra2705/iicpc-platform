@@ -15,10 +15,12 @@ import (
 	"syscall"
 	"time"
 
+	telemetryv1 "github.com/Ajayendra2705/iicpc-platform/proto/gen/go/telemetry/v1"
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/client"
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/clocksync"
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/gen"
 	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/stats"
+	"github.com/Ajayendra2705/iicpc-platform/services/bot-worker/internal/telemetry"
 )
 
 type config struct {
@@ -40,6 +42,9 @@ type config struct {
 	burstMultiplier int    // rate multiplier during burst
 	burstEveryS     int    // seconds between burst events
 	burstDurationMs int    // burst duration in milliseconds
+	telemetryAddr   string // telemetry-ingester gRPC address (empty = disabled)
+	telemetryBuffer int    // telemetry client queue size
+	contestantID    string // contestant_id tag on emitted events
 }
 
 func loadConfig() config {
@@ -62,6 +67,9 @@ func loadConfig() config {
 		burstMultiplier: envInt("BURST_MULTIPLIER", 10),
 		burstEveryS:     envInt("BURST_EVERY_S", 30),
 		burstDurationMs: envInt("BURST_DURATION_MS", 100),
+		telemetryAddr:   envOr("TELEMETRY_ADDR", ""),
+		telemetryBuffer: envInt("TELEMETRY_BUFFER", 1024),
+		contestantID:    envOr("CONTESTANT_ID", "unknown"),
 	}
 }
 
@@ -109,6 +117,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	var tele telemetry.Client = telemetry.NewStub()
+	if cfg.telemetryAddr != "" {
+		c, err := telemetry.Dial(ctx, cfg.telemetryAddr, cfg.telemetryBuffer, logger)
+		if err != nil {
+			logger.Warn("telemetry disabled", "err", err)
+		} else {
+			tele = c
+			logger.Info("telemetry stream", "addr", cfg.telemetryAddr, "contestant_id", cfg.contestantID)
+		}
+	}
+
 	var wg sync.WaitGroup
 	for i := 0; i < cfg.numWorkers; i++ {
 		wg.Add(1)
@@ -120,7 +139,7 @@ func main() {
 				return
 			}
 			defer cli.Close()
-			runWorker(ctx, id, cli, gen.New(genCfg), rec, arrivals, logger)
+			runWorker(ctx, id, cli, gen.New(genCfg), rec, arrivals, tele, cfg.contestantID, cfg.workerID, logger)
 		}(i)
 	}
 
@@ -144,6 +163,7 @@ func main() {
 	defer shutCancel()
 	_ = srv.Shutdown(shutCtx)
 	wg.Wait()
+	_ = tele.Close()
 }
 
 // makeWorkerFactory returns a function that creates an OrderClient for each worker.
@@ -207,6 +227,8 @@ func runWorker(
 	g *gen.Generator,
 	rec *stats.Recorder,
 	arrivals *gen.Arrivals,
+	tele telemetry.Client,
+	contestantID, botID string,
 	log *slog.Logger,
 ) {
 	timer := time.NewTimer(arrivals.Next())
@@ -226,30 +248,59 @@ func runWorker(
 			if len(liveIDs) > 0 && g.ShouldCancel() {
 				pick := liveIDs[0]
 				liveIDs = liveIDs[1:]
+				start := time.Now()
 				latNs, err := cli.CancelOrder(ctx, pick)
 				switch {
 				case err == nil:
 					rec.RecordLatency(latNs)
+					tele.Emit(&telemetryv1.OrderEvent{
+						ContestantId: contestantID, BotId: botID, OrderId: pick,
+						Type:     telemetryv1.OrderType_ORDER_TYPE_CANCEL,
+						Result:   telemetryv1.OrderResult_ORDER_RESULT_ACK_ONLY,
+						SentTsNs: start.UnixNano(), AckTsNs: start.Add(time.Duration(latNs)).UnixNano(),
+						LatencyNs: latNs,
+					})
 				case isShutdownErr(ctx, err):
 					return
 				default:
 					rec.RecordError()
 					log.Warn("cancel failed", "order_id", pick, "err", err)
+					tele.Emit(&telemetryv1.OrderEvent{
+						ContestantId: contestantID, BotId: botID, OrderId: pick,
+						Type:     telemetryv1.OrderType_ORDER_TYPE_CANCEL,
+						Result:   telemetryv1.OrderResult_ORDER_RESULT_REJECTED,
+						SentTsNs: start.UnixNano(),
+					})
 				}
 			}
 
 			// place a new order on every arrival
 			ord := g.Next()
+			start := time.Now()
 			oid, latNs, err := cli.PlaceOrder(ctx, string(ord.Side), ord.Price, ord.Qty)
 			switch {
 			case err == nil:
 				rec.RecordLatency(latNs)
 				liveIDs = append(liveIDs, oid)
+				tele.Emit(&telemetryv1.OrderEvent{
+					ContestantId: contestantID, BotId: botID, OrderId: oid,
+					Type:     telemetryv1.OrderType_ORDER_TYPE_LIMIT,
+					Result:   telemetryv1.OrderResult_ORDER_RESULT_ACK_ONLY,
+					SentTsNs: start.UnixNano(), AckTsNs: start.Add(time.Duration(latNs)).UnixNano(),
+					LatencyNs: latNs, Price: ord.Price, Quantity: int64(ord.Qty),
+				})
 			case isShutdownErr(ctx, err):
 				return
 			default:
 				rec.RecordError()
 				log.Warn("place failed", "err", err)
+				tele.Emit(&telemetryv1.OrderEvent{
+					ContestantId: contestantID, BotId: botID,
+					Type:     telemetryv1.OrderType_ORDER_TYPE_LIMIT,
+					Result:   telemetryv1.OrderResult_ORDER_RESULT_REJECTED,
+					SentTsNs: start.UnixNano(),
+					Price:    ord.Price, Quantity: int64(ord.Qty),
+				})
 			}
 		}
 	}
