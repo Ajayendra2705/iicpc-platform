@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -226,26 +227,41 @@ func runWorker(
 				pick := liveIDs[0]
 				liveIDs = liveIDs[1:]
 				latNs, err := cli.CancelOrder(ctx, pick)
-				if err != nil {
+				switch {
+				case err == nil:
+					rec.RecordLatency(latNs)
+				case isShutdownErr(ctx, err):
+					return
+				default:
 					rec.RecordError()
 					log.Warn("cancel failed", "order_id", pick, "err", err)
-				} else {
-					rec.RecordLatency(latNs)
 				}
 			}
 
 			// place a new order on every arrival
 			ord := g.Next()
 			oid, latNs, err := cli.PlaceOrder(ctx, string(ord.Side), ord.Price, ord.Qty)
-			if err != nil {
+			switch {
+			case err == nil:
+				rec.RecordLatency(latNs)
+				liveIDs = append(liveIDs, oid)
+			case isShutdownErr(ctx, err):
+				return
+			default:
 				rec.RecordError()
 				log.Warn("place failed", "err", err)
-				continue
 			}
-			rec.RecordLatency(latNs)
-			liveIDs = append(liveIDs, oid)
 		}
 	}
+}
+
+// isShutdownErr returns true if err is the result of ctx cancellation (graceful
+// shutdown) and should not be counted as a real failure.
+func isShutdownErr(ctx context.Context, err error) bool {
+	if ctx.Err() != nil {
+		return true
+	}
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func envOr(key, fallback string) string {

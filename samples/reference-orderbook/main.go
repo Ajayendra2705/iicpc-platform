@@ -3,18 +3,23 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"reference-orderbook/engine"
 )
 
-var ob = engine.New()
+var (
+	ob      = engine.New()
+	orderID atomic.Uint64
+)
 
 type placeReq struct {
 	ID    string  `json:"id"`
@@ -50,7 +55,7 @@ func main() {
 	<-ctx.Done()
 	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	srv.Shutdown(shutCtx)
+	_ = srv.Shutdown(shutCtx)
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -73,14 +78,18 @@ func handlePlace(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "side must be buy or sell", http.StatusBadRequest)
 		return
 	}
-	o := &engine.Order{ID: req.ID, Side: side, Price: req.Price, Qty: req.Qty, At: time.Now()}
+	id := req.ID
+	if id == "" {
+		id = fmt.Sprintf("ord-%d", orderID.Add(1))
+	}
+	o := &engine.Order{ID: id, Side: side, Price: req.Price, Qty: req.Qty, At: time.Now()}
 	fills, err := ob.Place(o)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"fills": fills})
+	_ = json.NewEncoder(w).Encode(map[string]any{"id": id, "fills": fills})
 }
 
 func handleCancel(w http.ResponseWriter, r *http.Request) {
@@ -95,5 +104,5 @@ func handleCancel(w http.ResponseWriter, r *http.Request) {
 func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	snap := ob.Snapshot()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(snap)
+	_ = json.NewEncoder(w).Encode(snap)
 }
