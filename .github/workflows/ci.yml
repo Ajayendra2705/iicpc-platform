@@ -180,6 +180,8 @@ jobs:
           build-args: SERVICE=leaderboard-svc
           tags: iicpc/leaderboard-svc:ci
           push: false
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
       - name: Build web image (smoke)
         uses: docker/build-push-action@v6
         with:

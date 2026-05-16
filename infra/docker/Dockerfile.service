@@ -36,13 +36,18 @@ COPY proto proto
 COPY samples samples
 COPY services services
 
-# No explicit `go work sync` — `go build` resolves the workspace lazily
-# and pulls only what the target service actually needs. Skipping sync
-# avoids the whole workspace having to be reachable when only one service
-# is being built.
+# Build the target service. The workspace `use ./proto/gen/go` directive
+# resolves the private proto module locally, BUT Go still verifies the
+# pseudo-version against the remote — for that we mount GITHUB_TOKEN as
+# a build secret and rewrite https://github.com/ to inject the token.
+# Locally without the secret the fallback no-ops; works for public modules.
 WORKDIR /src/services/${SERVICE}
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=secret,id=github_token \
+    if [ -s /run/secrets/github_token ]; then \
+      git config --global url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/"; \
+    fi && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags="-s -w" -o /out/app .
 
