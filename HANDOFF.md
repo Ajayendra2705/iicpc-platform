@@ -2,10 +2,10 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 26 completion. **Day 27 (chaos tests) next. 6 days of buffer remain.**
+> Last updated after Day 27 completion. **Day 28 (EKS staging smoke) next. 5 days of buffer remain.**
 
 **GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
-**CI:** GitHub Actions, all jobs green as of commit `93801dd` (Day 26). Workflow file: `.github/workflows/ci.yml`. Jobs: per-module Go matrix (test -race, build, vet), per-module golangci-lint, buf-lint, **terraform-validate** (D25), **helm-lint + kubeconform** (D26).
+**CI:** GitHub Actions, all jobs green as of commit `9762d63` (Day 27). Workflow file: `.github/workflows/ci.yml`. Jobs: per-module Go matrix (test -race, build, vet), per-module golangci-lint, buf-lint, **terraform-validate** (D25), **helm-lint + kubeconform** (D26, extended in D27 to validate chaos manifests).
 
 ---
 
@@ -148,8 +148,8 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | **24** | **Submission UI:** UploadForm + 7-stage SubmissionStatus visualization + LogViewer (auto-scroll, color-coded), real upload + synthetic pipeline fallback | ✅ done | `f161719` |
 | **25** | **Terraform AWS:** VPC + 3-AZ subnets, EKS + 3 node pools (services/contestants taint/bots, Graviton AMI), RDS Postgres 16 + Timescale param group, ElastiCache Redis 7.1, MSK Serverless SASL/IAM, S3 versioned/encrypted, 10 ECR repos, **terraform-validate CI gate** | ✅ done | `0e1c0f9` |
 | **26** | **Helm umbrella chart:** 9 deploys + UI iterated from values.services, HPA (CPU 80%), PDB minAvailable=1, PSA `restricted` namespace, 5 NetworkPolicies (default-deny + DNS + same-ns + AWS data-plane, IMDS blocked). **helm-lint + kubeconform CI gate** | ✅ done | `93801dd` |
-| **27** | Chaos tests (Pumba / kill pods / network jitter); EKS staging smoke | ⏳ **next** | |
-| 28 | End-to-end smoke on EKS staging | pending | |
+| **27** | **Chaos test playbook:** 3 reproducible scenarios (kill bot pod, isolate contestant via NetworkPolicy, Pumba latency injection) with PowerShell scripts, static YAML templates, kubeconform CI gate, full timeline-table docs in `docs/CHAOS.md` | ✅ done | `9762d63` |
+| **28** | End-to-end smoke on EKS staging (one-shot `terraform apply` + `helm upgrade` + benchmark + measure) | ⏳ **next** | |
 | 29–32 | ARCHITECTURE.md polish, README + demo script, demo video, final submit | pending | |
 
 **Current branch:** `main`. **Default PR base:** `main`.
@@ -302,17 +302,21 @@ curl http://localhost:8080/submissions/<id>
 
 ---
 
-## 11. What's Next (Day 27 — chaos tests)
+## 11. What's Next (Day 28 — EKS staging smoke)
 
-Day 27 is chaos testing per PLAN:
-- Kill bot pod mid-benchmark → expect self-heal (Deployment + HPA)
-- Kill contestant pod → expect score penalty applied
-- Network jitter via toxiproxy or Pumba
-- Document each scenario as a reproducible script under `scripts/chaos/`
+D28 is the first real cloud run:
+1. `terraform apply` in `infra/terraform/` (~15–20 min for VPC + EKS + RDS)
+2. Build + push service images to ECR (`--platform linux/arm64` per Graviton)
+3. `aws eks update-kubeconfig` to populate `~/.kube/config`
+4. `helm upgrade --install iicpc ./infra/helm/iicpc-platform -f values.yaml -f values.production.yaml --set global.imageRegistry=<ECR>`
+5. Apply chrony DaemonSet + sandbox-runner manifest + TimescaleDB migration
+6. Start a benchmark via `bot-coordinator`, watch end-to-end through web UI
+7. Capture: cold-start time per service, end-to-end leaderboard latency, max sustained TPS
+8. `terraform destroy` to halt the meter
 
-Then D28 is EKS staging smoke (one-shot `terraform apply` + `helm upgrade` + run a benchmark + measure end-to-end latency). After that: docs polish, demo script, video, submit.
+Then D29–32: ARCHITECTURE.md polish, README + demo script, demo video (5 min: upload → run → leaderboard → chaos), final submit.
 
-**Do NOT start without explicit `"go"` from user.**
+**Do NOT start without explicit `"go"` from user.** D28 burns real AWS credit.
 
 ---
 
@@ -638,6 +642,26 @@ Repo-root file `IDEAS.md` holds the differentiator backlog. Update it as new ide
 
 ---
 
+## 11q. Chaos tests — Detailed State (Day 27 complete)
+
+Three reproducible chaos scenarios. Full playbook in `docs/CHAOS.md` (scenario matrix + timeline tables + prerequisites + limitations).
+
+| # | Script | Tests | Cluster requirement |
+|---|---|---|---|
+| 1 | `scripts/chaos/kill-bot-pod.ps1` | Deployment + HPA self-heal | any K8s ≥ 1.27 |
+| 2 | `scripts/chaos/isolate-contestant.ps1 -ContestantID <id>` | Failure-path scoring (timeouts → score drops) | CNI with NetworkPolicy enforcement (Calico / Cilium / EKS) |
+| 3 | `scripts/chaos/inject-latency.ps1 -DelayMs 100 -JitterMs 20` | Latency penalty in score formula via Pumba `netem` | Pumba-capable nodes (won't work on gVisor — see CHAOS.md "Limitations") |
+| ★ | `scripts/chaos/run-suite.ps1` | All three back-to-back with timed pauses (built for demo-video capture) | as above |
+
+**Static manifests** (`infra/manifests/chaos/`):
+- `isolate-policy.yaml` — deny-all NetworkPolicy template (scoped by `chaos.iicpc.io/isolated: <id>` label; scripts patch the id at runtime)
+- `pumba-network-delay.yaml` — Pumba Job template (`tc qdisc add netem delay 100ms 20ms`, NET_ADMIN cap, `tc-image: gaiadocker/iproute2`)
+- `kustomization.yaml` — bundles both with `app.kubernetes.io/component: chaos`
+
+**CI gate**: existing `helm-lint` job extended to kubeconform-validate both chaos manifests alongside the rendered helm output (K8s 1.30 schema). Locally: 2/2 valid.
+
+---
+
 ## 12. Memory / Persistence Notes for Future Claude
 
 - The user has a `caveman` skill active by default in this project. Respect it.
@@ -653,7 +677,7 @@ Run these to verify state:
 
 ```powershell
 git log --oneline -10
-# expect (newest first), most recent first: 93801dd (D26 helm), 0e1c0f9 (D25-fix), f547c8a (D25), f161719 (D24), 3472b3e (D23), 262e5cd (D22.5 seed+ipv4), b8d22a8 (D22), 735adc2 (D21), 5856175 (D20), 11d4552 (D19)
+# expect (newest first): 9762d63 (D27 chaos), a9cb8e8 (HANDOFF refresh), 93801dd (D26 helm), 0e1c0f9 (D25-fix), f547c8a (D25), f161719 (D24), 3472b3e (D23), 262e5cd (D22.5), b8d22a8 (D22), 735adc2 (D21)
 
 git status --short
 # expect: clean except .claude/ and IDEATION_IMPLEMENTATION_PIPELINE.md (untracked, intentional)
