@@ -1,0 +1,92 @@
+{{- range $name, $svc := .Values.services }}
+{{- if not $svc.disabled }}
+{{- $defaults := $.Values.defaults }}
+{{- $pool := default $defaults.pool $svc.pool }}
+{{- $healthPath := default $defaults.healthPath $svc.healthPath }}
+{{- $resources := default $defaults.resources $svc.resources }}
+{{- $tag := default $.Values.global.imageTag $svc.tag }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Values.global.namespace }}
+  labels: {{- include "iicpc.labels" (dict "Root" $ "Name" $name) | nindent 4 }}
+spec:
+  replicas: {{ include "iicpc.replicasMin" (dict "service" $svc "defaults" $defaults) }}
+  selector:
+    matchLabels: {{- include "iicpc.selectorLabels" (dict "Root" $ "Name" $name) | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "iicpc.labels" (dict "Root" $ "Name" $name) | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      nodeSelector:
+        pool: {{ $pool }}
+      {{- if eq $pool "contestants" }}
+      tolerations:
+        - key: pool
+          value: contestants
+          effect: NoSchedule
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.global.imageRegistry }}/{{ $svc.image }}:{{ $tag }}"
+          imagePullPolicy: {{ default $defaults.imagePullPolicy $svc.imagePullPolicy }}
+          ports:
+            - name: app
+              containerPort: {{ $svc.port }}
+              protocol: {{ default "TCP" $svc.protocol }}
+          {{- with $svc.env }}
+          env:
+            {{- range . }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          {{- end }}
+          readinessProbe:
+            {{- if eq (default "TCP" $svc.protocol) "TCP" }}
+            {{- if hasPrefix "/" $healthPath }}
+            httpGet:
+              path: {{ $healthPath }}
+              port: {{ $svc.port }}
+            {{- else }}
+            tcpSocket:
+              port: {{ $svc.port }}
+            {{- end }}
+            {{- end }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            {{- if hasPrefix "/" $healthPath }}
+            httpGet:
+              path: {{ $healthPath }}
+              port: {{ $svc.port }}
+            {{- else }}
+            tcpSocket:
+              port: {{ $svc.port }}
+            {{- end }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources: {{- toYaml $resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}
+{{- end }}

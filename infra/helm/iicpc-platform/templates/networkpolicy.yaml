@@ -1,0 +1,104 @@
+{{/*
+Zero-trust baseline: deny everything inside this namespace, then explicitly
+allow same-namespace traffic, DNS to kube-system, and external egress only
+for services that need it. Bot pods (separate namespace iicpc-bots) get
+their own policy elsewhere.
+*/}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app.kubernetes.io/part-of: iicpc-platform
+    app.kubernetes.io/managed-by: helm
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.global.namespace }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Same-namespace egress: services talking to each other inside iicpc.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace-egress
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.global.namespace }}
+---
+# Egress to AWS-managed data plane (RDS / Redis / MSK / S3).
+# CIDR is filled in via values; default keeps it open for kind/dev.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-aws-egress
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - submission-svc       # S3
+          - telemetry-ingester   # MSK
+          - aggregator           # MSK + RDS
+          - validator            # MSK
+          - leaderboard-svc      # Redis
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.169.254/32   # block IMDS
+      ports:
+        - protocol: TCP
+          port: 443                  # S3 / MSK SASL TLS / RDS via PrivateLink
+        - protocol: TCP
+          port: 5432                 # Postgres
+        - protocol: TCP
+          port: 6379                 # Redis
+        - protocol: TCP
+          port: 9098                 # MSK SASL/IAM

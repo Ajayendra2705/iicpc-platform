@@ -1,0 +1,15 @@
+{{- range $name, $svc := .Values.services }}
+{{- if not $svc.disabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Values.global.namespace }}
+  labels: {{- include "iicpc.labels" (dict "Root" $ "Name" $name) | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {{- include "iicpc.selectorLabels" (dict "Root" $ "Name" $name) | nindent 6 }}
+{{- end }}
+{{- end }}

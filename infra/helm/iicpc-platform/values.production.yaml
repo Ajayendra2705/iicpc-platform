@@ -1,0 +1,40 @@
+# Production overlay. Apply with:
+#   helm upgrade --install iicpc ./iicpc-platform \
+#     -f values.yaml -f values.production.yaml \
+#     --set global.imageTag=$IMAGE_TAG
+global:
+  # ECR repo URL pattern; set via --set during deploy.
+  imageRegistry: "123456789012.dkr.ecr.ap-south-1.amazonaws.com"
+  imageTag: "v0.1.0"
+  namespace: iicpc
+
+defaults:
+  replicas:
+    min: 3
+    max: 12
+  resources:
+    requests:
+      cpu: 250m
+      memory: 128Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+services:
+  api-gateway:
+    replicas: { min: 3, max: 20 }
+  submission-svc:
+    replicas: { min: 2, max: 8 }
+  telemetry-ingester:
+    replicas: { min: 4, max: 20 }
+    resources:
+      requests: { cpu: 500m, memory: 256Mi }
+      limits:   { cpu: 2000m, memory: 1Gi }
+  aggregator:
+    replicas: { min: 2, max: 6 }
+  validator:
+    replicas: { min: 2, max: 6 }
+  leaderboard-svc:
+    replicas: { min: 3, max: 10 }
+  web:
+    replicas: { min: 2, max: 8 }

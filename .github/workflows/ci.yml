@@ -121,3 +121,26 @@ jobs:
           install-mode: goinstall
           working-directory: ${{ matrix.module }}
           args: --timeout=5m
+
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.3"
+      - name: helm lint
+        run: helm lint infra/helm/iicpc-platform
+      - name: helm template (dev)
+        run: helm template iicpc infra/helm/iicpc-platform > /tmp/dev.yaml
+      - name: helm template (production overlay)
+        run: |
+          helm template iicpc infra/helm/iicpc-platform \
+            -f infra/helm/iicpc-platform/values.yaml \
+            -f infra/helm/iicpc-platform/values.production.yaml \
+            > /tmp/prod.yaml
+      - name: kubeconform (manifest schema check)
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar -xz -C /tmp kubeconform
+          /tmp/kubeconform -strict -summary -kubernetes-version 1.30.0 /tmp/dev.yaml /tmp/prod.yaml

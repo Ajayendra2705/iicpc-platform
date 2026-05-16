@@ -1,0 +1,31 @@
+{{- range $name, $svc := .Values.services }}
+{{- if not $svc.disabled }}
+{{- $defaults := $.Values.defaults }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Values.global.namespace }}
+  labels: {{- include "iicpc.labels" (dict "Root" $ "Name" $name) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ include "iicpc.replicasMin" (dict "service" $svc "defaults" $defaults) }}
+  maxReplicas: {{ include "iicpc.replicasMax" (dict "service" $svc "defaults" $defaults) }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ default $defaults.targetCPUPercent $svc.targetCPUPercent }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 120
+    scaleUp:
+      stabilizationWindowSeconds: 0
+{{- end }}
+{{- end }}

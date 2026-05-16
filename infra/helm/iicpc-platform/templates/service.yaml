@@ -1,0 +1,19 @@
+{{- range $name, $svc := .Values.services }}
+{{- if not $svc.disabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Values.global.namespace }}
+  labels: {{- include "iicpc.labels" (dict "Root" $ "Name" $name) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector: {{- include "iicpc.selectorLabels" (dict "Root" $ "Name" $name) | nindent 4 }}
+  ports:
+    - name: app
+      port: {{ $svc.port }}
+      targetPort: app
+      protocol: {{ default "TCP" $svc.protocol }}
+{{- end }}
+{{- end }}

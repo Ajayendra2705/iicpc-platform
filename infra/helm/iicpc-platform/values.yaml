@@ -1,0 +1,112 @@
+global:
+  # Image registry. Override per env: ECR for AWS, localhost:5000 for kind.
+  imageRegistry: "localhost:5000"
+  imageTag: "latest"
+  namespace: iicpc
+
+# Default config applied to every service unless overridden.
+defaults:
+  replicas:
+    min: 2
+    max: 6
+  targetCPUPercent: 80
+  pool: services
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  healthPath: /healthz
+  imagePullPolicy: IfNotPresent
+
+# Per-service config. Each entry becomes a Deployment + Service + HPA +
+# ServiceAccount + PodDisruptionBudget. Set `disabled: true` to skip.
+services:
+  api-gateway:
+    image: iicpc/api-gateway
+    port: 8080
+    expose: true              # add ingress (D27 will wire ingress class)
+    env:
+      - { name: HTTP_ADDR,           value: ":8080" }
+      - { name: SUBMISSION_SVC_URL,  value: "http://submission-svc:8081" }
+
+  submission-svc:
+    image: iicpc/submission-svc
+    port: 8081
+    env:
+      - { name: HTTP_ADDR, value: ":8081" }
+      - { name: STORE_KIND, value: "postgres" }
+      # POSTGRES_DSN, MINIO_*, INTERNAL_TOKEN injected via secret (D26-bis).
+
+  sandbox-runner:
+    image: iicpc/sandbox-runner
+    port: 9090
+    protocol: TCP             # gRPC
+    env:
+      - { name: GRPC_ADDR, value: ":9090" }
+      - { name: K8S_NAMESPACE, value: "iicpc-contestants" }
+
+  bot-coordinator:
+    image: iicpc/bot-coordinator
+    port: 8083
+    env:
+      - { name: BOT_COORDINATOR_ADDR, value: ":8083" }
+      - { name: SPAWNER_KIND,         value: "k8s" }
+      - { name: K8S_NAMESPACE,        value: "iicpc-bots" }
+      - { name: BOT_WORKER_IMAGE,     value: "{{ .Values.global.imageRegistry }}/iicpc/bot-worker:{{ .Values.global.imageTag }}" }
+
+  telemetry-ingester:
+    image: iicpc/telemetry-ingester
+    port: 9091
+    protocol: TCP             # gRPC
+    replicas:
+      min: 3
+      max: 10
+    env:
+      - { name: GRPC_ADDR,        value: ":9091" }
+      - { name: BUFFER_CAPACITY,  value: "32768" }
+      - { name: BATCH_SIZE,       value: "256" }
+      - { name: PRODUCER_KIND,    value: "kafka" }
+      # KAFKA_BROKERS injected via configmap on production overlay.
+
+  aggregator:
+    image: iicpc/aggregator
+    port: 8084
+    env:
+      - { name: HTTP_ADDR,      value: ":8084" }
+      - { name: CONSUMER_KIND,  value: "kafka" }
+      - { name: WRITER_KIND,    value: "timescale" }
+
+  validator:
+    image: iicpc/validator
+    port: 8085
+    env:
+      - { name: HTTP_ADDR,      value: ":8085" }
+      - { name: CONSUMER_KIND,  value: "kafka" }
+
+  leaderboard-svc:
+    image: iicpc/leaderboard-svc
+    port: 8086
+    expose: true              # public WS + /leaderboard
+    env:
+      - { name: HTTP_ADDR,        value: ":8086" }
+      - { name: STORE_KIND,       value: "redis" }
+      - { name: AGGREGATOR_URL,   value: "http://aggregator:8084" }
+      - { name: VALIDATOR_URL,    value: "http://validator:8085" }
+
+  web:
+    image: iicpc/web
+    port: 3000
+    expose: true              # root site
+    healthPath: /
+    pool: services
+    env:
+      - { name: LEADERBOARD_URL, value: "http://leaderboard-svc:8086" }
+      - { name: AGGREGATOR_URL,  value: "http://aggregator:8084" }
+      - { name: VALIDATOR_URL,   value: "http://validator:8085" }
+      - { name: SUBMISSION_URL,  value: "http://submission-svc:8081" }
+
+# bot-worker is NOT deployed here — it runs as a K8s Job spawned by
+# bot-coordinator (one Job per benchmark, parallelism=N).

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: iicpc-platform
+description: |
+  IICPC distributed benchmarking platform — umbrella chart that deploys
+  all backend services + web UI into a single restricted-PSA namespace.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - benchmarking
+  - trading
+  - kubernetes
+  - hackathon
