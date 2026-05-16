@@ -6,11 +6,12 @@ const nextConfig = {
     // Use 127.0.0.1 (not localhost) — on Windows + Node 22 localhost resolves
     // to ::1 first, but Go listeners default to IPv4-only, causing ECONNREFUSED.
     const leaderboard = process.env.LEADERBOARD_URL || 'http://127.0.0.1:8086';
+    const aggregator = process.env.AGGREGATOR_URL || 'http://127.0.0.1:8084';
+    const validator = process.env.VALIDATOR_URL || 'http://127.0.0.1:8085';
     return [
-      {
-        source: '/api/leaderboard',
-        destination: `${leaderboard}/leaderboard`,
-      },
+      { source: '/api/leaderboard', destination: `${leaderboard}/leaderboard` },
+      { source: '/api/metrics/:id', destination: `${aggregator}/metrics/:id` },
+      { source: '/api/validate/:id', destination: `${validator}/validate/:id` },
     ];
   },
 };

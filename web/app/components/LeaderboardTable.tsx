@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { Entry, SortDir, SortKey } from "../types";
 
@@ -58,7 +59,11 @@ export function LeaderboardTable({ entries }: { entries: Entry[] }) {
         {sorted.map((row) => (
           <tr key={row.contestant_id}>
             <td className={`rank ${row.rank === 1 ? "top-1" : ""}`}>#{row.rank}</td>
-            <td className="contestant">{row.contestant_id}</td>
+            <td className="contestant">
+              <Link href={`/contestant/${encodeURIComponent(row.contestant_id)}`} className="contestant-link">
+                {row.contestant_id}
+              </Link>
+            </td>
             <td className="score">{row.score.toLocaleString()}</td>
           </tr>
         ))}
