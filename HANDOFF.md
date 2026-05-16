@@ -149,7 +149,7 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | **25** | **Terraform AWS:** VPC + 3-AZ subnets, EKS + 3 node pools (services/contestants taint/bots, Graviton AMI), RDS Postgres 16 + Timescale param group, ElastiCache Redis 7.1, MSK Serverless SASL/IAM, S3 versioned/encrypted, 10 ECR repos, **terraform-validate CI gate** | ✅ done | `0e1c0f9` |
 | **26** | **Helm umbrella chart:** 9 deploys + UI iterated from values.services, HPA (CPU 80%), PDB minAvailable=1, PSA `restricted` namespace, 5 NetworkPolicies (default-deny + DNS + same-ns + AWS data-plane, IMDS blocked). **helm-lint + kubeconform CI gate** | ✅ done | `93801dd` |
 | **27** | **Chaos test playbook:** 3 reproducible scenarios (kill bot pod, isolate contestant via NetworkPolicy, Pumba latency injection) with PowerShell scripts, static YAML templates, kubeconform CI gate, full timeline-table docs in `docs/CHAOS.md` | ✅ done | `9762d63` |
-| **28** | **Deploy artifacts** — shared Go service Dockerfile (parameterised by SERVICE), Next.js standalone Dockerfile, repo `.dockerignore`, `build-images.ps1` + `smoke-eks.ps1`, EKS staging runbook (`docs/EKS_STAGING_RUNBOOK.md`), hadolint + image-build CI gates | ✅ done | (this commit) |
+| **28** | **Deploy artifacts** — shared Go service Dockerfile (parameterised by SERVICE), Next.js standalone Dockerfile, repo `.dockerignore`, `build-images.ps1` + `smoke-eks.ps1`, EKS staging runbook (`docs/EKS_STAGING_RUNBOOK.md`), hadolint + image-build CI gates. **Took 8 fix commits** to align Go versions (1.22→1.26) across go.work, go.mods, Dockerfile base, and wire `GITHUB_TOKEN` build secret for private-module fetch. | ✅ done | `eda8df2`→`ac5a850` |
 | 29–32 | ARCHITECTURE.md polish, README + demo script, demo video, final submit | pending | |
 
 **Current branch:** `main`. **Default PR base:** `main`.
@@ -703,7 +703,7 @@ Run these to verify state:
 
 ```powershell
 git log --oneline -10
-# expect (newest first): 9762d63 (D27 chaos), a9cb8e8 (HANDOFF refresh), 93801dd (D26 helm), 0e1c0f9 (D25-fix), f547c8a (D25), f161719 (D24), 3472b3e (D23), 262e5cd (D22.5), b8d22a8 (D22), 735adc2 (D21)
+# expect (newest first): ac5a850 (D28 go.mod align), e46bbcc/919bfc5/718d720/ccffcc3/344d331/bab922f/420871d (D28 CI fixes), eda8df2 (D28 deploy artifacts), aa8fb4b (HANDOFF D27 refresh), 9762d63 (D27 chaos), a9cb8e8 (HANDOFF D14-26 refresh)
 
 git status --short
 # expect: clean except .claude/ and IDEATION_IMPLEMENTATION_PIPELINE.md (untracked, intentional)
