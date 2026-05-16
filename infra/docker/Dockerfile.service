@@ -23,7 +23,8 @@ ARG TARGETARCH
 ENV GOFLAGS=-mod=mod \
     CGO_ENABLED=0 \
     GOPRIVATE=github.com/Ajayendra2705 \
-    GONOSUMCHECK=github.com/Ajayendra2705
+    GONOSUMCHECK=github.com/Ajayendra2705 \
+    GOTOOLCHAIN=auto
 
 WORKDIR /src
 COPY go.work go.work.sum ./
