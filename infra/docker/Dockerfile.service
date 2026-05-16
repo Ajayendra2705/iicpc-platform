@@ -20,6 +20,11 @@ ARG SERVICE
 ARG TARGETOS
 ARG TARGETARCH
 
+# git is required by `go build` whenever it consults the module cache for
+# private modules — even when the workspace `use` directive provides the
+# code locally, Go still validates pseudo-versions via git.
+RUN apk add --no-cache git ca-certificates
+
 ENV GOFLAGS=-mod=mod \
     CGO_ENABLED=0 \
     GOPRIVATE=github.com/Ajayendra2705 \
@@ -32,8 +37,10 @@ COPY proto proto
 COPY samples samples
 COPY services services
 
-RUN go work sync
-
+# No explicit `go work sync` — `go build` resolves the workspace lazily
+# and pulls only what the target service actually needs. Skipping sync
+# avoids the whole workspace having to be reachable when only one service
+# is being built.
 WORKDIR /src/services/${SERVICE}
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
