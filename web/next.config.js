@@ -8,10 +8,13 @@ const nextConfig = {
     const leaderboard = process.env.LEADERBOARD_URL || 'http://127.0.0.1:8086';
     const aggregator = process.env.AGGREGATOR_URL || 'http://127.0.0.1:8084';
     const validator = process.env.VALIDATOR_URL || 'http://127.0.0.1:8085';
+    const submission = process.env.SUBMISSION_URL || 'http://127.0.0.1:8080';
     return [
       { source: '/api/leaderboard', destination: `${leaderboard}/leaderboard` },
       { source: '/api/metrics/:id', destination: `${aggregator}/metrics/:id` },
       { source: '/api/validate/:id', destination: `${validator}/validate/:id` },
+      { source: '/api/submissions', destination: `${submission}/submissions` },
+      { source: '/api/submissions/:id', destination: `${submission}/submissions/:id` },
     ];
   },
 };

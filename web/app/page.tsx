@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { LeaderboardTable } from "./components/LeaderboardTable";
 import { StatusBadge } from "./components/StatusBadge";
 import { useLeaderboard } from "./hooks/useLeaderboard";
@@ -21,7 +22,12 @@ export default function Home() {
             a column header.
           </div>
         </div>
-        <StatusBadge status={status} />
+        <div className="header-actions">
+          <Link href="/submit" className="primary submit-link">
+            Submit code
+          </Link>
+          <StatusBadge status={status} />
+        </div>
       </div>
 
       <LeaderboardTable entries={entries} />

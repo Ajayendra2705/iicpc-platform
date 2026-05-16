@@ -36,3 +36,28 @@ export type TPSSample = {
   t: number; // unix ms
   tps: number;
 };
+
+export type SubmissionStatus =
+  | "queued"
+  | "downloading"
+  | "extracting"
+  | "building"
+  | "pushing"
+  | "scanning"
+  | "ready"
+  | "failed";
+
+export type Submission = {
+  id: string;
+  contestant_id: string;
+  lang: string;
+  status: SubmissionStatus;
+  image_url?: string;
+  error?: string;
+};
+
+export type LogLine = {
+  t: number; // unix ms
+  level: "info" | "warn" | "error";
+  text: string;
+};
