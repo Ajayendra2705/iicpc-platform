@@ -38,7 +38,7 @@
 
 ---
 
-_Last updated: D30 complete (2026-05-17)._
+_Last updated: D31 complete (2026-05-17)._
 
 ## Tech debt picked up since last update
 

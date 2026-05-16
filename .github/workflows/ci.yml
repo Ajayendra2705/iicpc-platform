@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main, master]
-    # Docs-only commits skip CI to stay under the 2000-min/month free tier.
+    # Stay under the 2000-min/month free tier — skip CI for non-code paths.
     paths-ignore:
       - "**/*.md"
       - "docs/**"
@@ -13,11 +13,15 @@ on:
       - "HANDOFF.md"
       - "README.md"
       - "PLAN.md"
+      - "scripts/**"
+      - "web/app/icon.svg"
+      - "web/public/**"
   pull_request:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
       - "LICENSE"
+      - "scripts/**"
 
 permissions:
   contents: read

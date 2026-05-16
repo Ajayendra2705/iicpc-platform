@@ -30,18 +30,26 @@ demo runs locally against SEED_DEMO + the chaos suite. Total runtime: **~5 min**
 ### Pre-flight checklist (run before hitting record)
 
 ```powershell
-# 1. Pre-cache the npm install so it doesn't run on camera
-cd web; npm install; cd ..
+# One-shot: starts both backends, waits until /healthz green, opens browser.
+# Logs land in .bin/ for tailing if anything misbehaves.
+./scripts/demo/prepare.ps1
 
-# 2. Pre-build the bot-coordinator binary so `go run .` is instant
-cd services\leaderboard-svc; go build -o ../../.bin/leaderboard.exe .
-
-# 3. Verify the chaos scripts have execute permission via PowerShell
-Get-ExecutionPolicy   # should be RemoteSigned or Unrestricted
-
-# 4. Open http://localhost:3000 in browser, take a "before" screenshot
-#    (the leaderboard empty state with "Waiting for benchmark results...")
+# When the take ends or something goes wrong mid-record:
+./scripts/demo/teardown.ps1
 ```
+
+Manual fallback (if `prepare.ps1` fails on your machine):
+
+```powershell
+# Terminal A
+cd services\leaderboard-svc; $env:SEED_DEMO = "true"; go run .
+
+# Terminal B
+cd web; npm install; npm run dev
+```
+
+Verified working end-to-end on D31: leaderboard returns 6 contestants
+within 5s of starting, web reaches HTTP 200 within 30s.
 
 ### OBS scenes
 

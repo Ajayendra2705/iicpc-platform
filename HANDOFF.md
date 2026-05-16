@@ -2,7 +2,7 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 30 completion. **Day 31 (record demo video) next. 2 days of buffer remain.**
+> Last updated after Day 31 completion. **Day 32 (final submission) next. 1 day of buffer remain.**
 
 **GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
 **CI:** GitHub Actions. Workflow file: `.github/workflows/ci.yml`. Jobs: per-module Go matrix (test -race, build, vet), per-module golangci-lint, buf-lint, **terraform-validate** (D25), **helm-lint + kubeconform** (D26, extended D27 to validate chaos manifests), **dockerfile-lint + service-image-build** (D28).
@@ -152,9 +152,9 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | **28** | **Deploy artifacts** — shared Go service Dockerfile (parameterised by SERVICE), Next.js standalone Dockerfile, repo `.dockerignore`, `build-images.ps1` + `smoke-eks.ps1`, EKS staging runbook (`docs/EKS_STAGING_RUNBOOK.md`), hadolint + image-build CI gates. **Took 8 fix commits** to align Go versions (1.22→1.26) across go.work, go.mods, Dockerfile base, and wire `GITHUB_TOKEN` build secret for private-module fetch. | ✅ done | `eda8df2`→`ac5a850` |
 | **29** | **Docs blueprint** — ARCHITECTURE.md full rewrite with 3 Mermaid diagrams (system, order→pixel sequence, deployment topology) + service catalog + score-formula spec + perf-targets-vs-delivered table. README.md rewritten with 2-terminal quick-start, status matrix, layout, caveats. | ✅ done | `2c46485` |
 | **29.5** | CI cost guard: `paths-ignore` for `**/*.md` + `docs/**` — doc-only commits no longer burn Actions minutes (90% of 2000-min quota used; resets June 1) | ✅ done | `b2c914b` |
-| **30** | **Demo script** (`docs/DEMO_SCRIPT.md`) — recording-ready 5-min walkthrough with 5 scenes, exact timings, terminal commands, narration scripts, recovery plan, post-production checklist. **Contestant walkthrough** (`docs/SAMPLE_SUBMISSION_WALKTHROUGH.md`) — runtime contract, build constraints, local smoke test, upload via UI/API, score formula explainer, debugging guide, pre-submit checklist. | ✅ done | (this commit) |
-| 31 | Record demo video against SEED_DEMO setup (no AWS burn) | pending | |
-| 32 | Final hackathon submission (tag release, submit URL) | pending | |
+| **30** | **Demo script** (`docs/DEMO_SCRIPT.md`) — recording-ready 5-min walkthrough with 5 scenes, exact timings, terminal commands, narration scripts, recovery plan, post-production checklist. **Contestant walkthrough** (`docs/SAMPLE_SUBMISSION_WALKTHROUGH.md`) — runtime contract, build constraints, local smoke test, upload via UI/API, score formula explainer, debugging guide, pre-submit checklist. | ✅ done | `091b839` |
+| **31** | **Demo recording prep** — `scripts/demo/prepare.ps1` one-command pre-flight (starts leaderboard SEED_DEMO + Next.js, waits for /healthz, opens browser), `teardown.ps1` clean stop. Web favicon at `web/app/icon.svg`. Smoke-tested: 6 contestants live in <5s, web HTTP 200 in <30s, teardown clean. **Recording itself is on the user** — pre-flight automation is what I can deliver. | ✅ done | (this commit) |
+| 32 | Final hackathon submission (tag release `v0.1.0-submission`, verify public URL, submit through portal) | pending | |
 
 **Current branch:** `main`. **Default PR base:** `main`.
 
@@ -306,25 +306,18 @@ curl http://localhost:8080/submissions/<id>
 
 ---
 
-## 11. What's Next (Day 31 — record the demo video)
+## 11. What's Next (Day 32 — final submission)
 
-D30 closed: `docs/DEMO_SCRIPT.md` is the recording-ready 5-minute script. `docs/SAMPLE_SUBMISSION_WALKTHROUGH.md` is the contestant-facing guide.
+D31 closed: pre-flight automation is in place and verified working. The actual recording is the user's responsibility (they need camera, mic, OBS).
 
-D31 work (recording):
-1. Follow `docs/DEMO_SCRIPT.md` "Pre-recording setup" section — window layout, pre-cache npm install, OBS scenes
-2. Do **one rehearsal pass without recording** to time it (target 4:30–5:00)
-3. Record with OBS at 1080p / 30 fps / h.264
-4. Splice retakes via the recovery-plan strategies in the script
-5. Post-process per checklist: trim → boost audio → title card → captions → export under 100 MB
-
-Then:
-- D32 — final submission. Tag release `v0.1.0-submission`, push tag, verify the public URL works, submit through portal.
+D32 work (final submission):
+1. Open OBS, follow `docs/DEMO_SCRIPT.md`, run `./scripts/demo/prepare.ps1`, record the 5-min video. Splice retakes per recovery plan.
+2. Post-process the video: trim head/tail, audio levels, captions, title card, export ≤ 100 MB. Upload as **unlisted YouTube** for backup.
+3. Tag the release: `git tag -a v0.1.0-submission -m "IICPC 2026 submission"` then `git push origin v0.1.0-submission`.
+4. Final sanity: fresh clone into a new directory, run `./scripts/demo/prepare.ps1`, confirm the UI works. If a judge tries this and it fails you lose points.
+5. Submit through the hackathon portal: include README link + YouTube URL.
 
 **Do NOT start without explicit `"go"` from user.**
-
-Optional pre-recording polish (only if time permits):
-- Add a "public/" stub with a favicon so the web UI tab shows a clean icon
-- Pre-populate a few `samples/smoke-go.tar.gz` archives so the upload demo isn't picking random files
 
 ---
 
