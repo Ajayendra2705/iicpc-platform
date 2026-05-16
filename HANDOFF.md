@@ -2,7 +2,7 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 28 completion. **Day 29 (ARCHITECTURE.md polish + README) next. 4 days of buffer remain.**
+> Last updated after Day 29 completion. **Day 30 (demo script) next. 3 days of buffer remain.**
 
 **GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
 **CI:** GitHub Actions. Workflow file: `.github/workflows/ci.yml`. Jobs: per-module Go matrix (test -race, build, vet), per-module golangci-lint, buf-lint, **terraform-validate** (D25), **helm-lint + kubeconform** (D26, extended D27 to validate chaos manifests), **dockerfile-lint + service-image-build** (D28).
@@ -150,7 +150,8 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | **26** | **Helm umbrella chart:** 9 deploys + UI iterated from values.services, HPA (CPU 80%), PDB minAvailable=1, PSA `restricted` namespace, 5 NetworkPolicies (default-deny + DNS + same-ns + AWS data-plane, IMDS blocked). **helm-lint + kubeconform CI gate** | ✅ done | `93801dd` |
 | **27** | **Chaos test playbook:** 3 reproducible scenarios (kill bot pod, isolate contestant via NetworkPolicy, Pumba latency injection) with PowerShell scripts, static YAML templates, kubeconform CI gate, full timeline-table docs in `docs/CHAOS.md` | ✅ done | `9762d63` |
 | **28** | **Deploy artifacts** — shared Go service Dockerfile (parameterised by SERVICE), Next.js standalone Dockerfile, repo `.dockerignore`, `build-images.ps1` + `smoke-eks.ps1`, EKS staging runbook (`docs/EKS_STAGING_RUNBOOK.md`), hadolint + image-build CI gates. **Took 8 fix commits** to align Go versions (1.22→1.26) across go.work, go.mods, Dockerfile base, and wire `GITHUB_TOKEN` build secret for private-module fetch. | ✅ done | `eda8df2`→`ac5a850` |
-| 29–32 | ARCHITECTURE.md polish, README + demo script, demo video, final submit | pending | |
+| **29** | **Docs blueprint** — ARCHITECTURE.md full rewrite with 3 Mermaid diagrams (system, order→pixel sequence, deployment topology) + service catalog + score-formula spec + perf-targets-vs-delivered table. README.md rewritten with 2-terminal quick-start, status matrix, layout, caveats. | ✅ done | (this commit) |
+| 30–32 | Demo script (D30), demo video (D31), final submit (D32) | pending | |
 
 **Current branch:** `main`. **Default PR base:** `main`.
 
@@ -302,21 +303,22 @@ curl http://localhost:8080/submissions/<id>
 
 ---
 
-## 11. What's Next (Day 29 — ARCHITECTURE.md + README polish)
+## 11. What's Next (Day 30 — demo script)
 
-D28 delivered the **artifacts** required to run EKS staging — Dockerfiles, build scripts, smoke-test, full runbook in `docs/EKS_STAGING_RUNBOOK.md`. **The actual `terraform apply` is a separate explicit user decision** because it burns ~$0.80/hour and accumulates.
+D29 closed: ARCHITECTURE.md is now the canonical spec (Mermaid + ASCII), README.md is judge-friendly with a 2-terminal quick-start.
 
-D29 work:
-- Refresh `docs/ARCHITECTURE.md` with all D14–D28 components (current diagram is from D1)
-- Polish `README.md` with quick-start, demo path, the two-terminal recipe
-- Wire `IDEAS.md` "differentiator" items into either the demo plan or the deferred-list
+D30 work:
+- Write `docs/DEMO_SCRIPT.md` — timed 5-minute walkthrough mapping each scene to commands + UI captures
+- Identify "money shots" for the demo video: upload flow, live leaderboard with WS pulse, detail page chart transitions, chaos suite (kill-bot self-heal + isolate-contestant score dip)
+- Pre-cache assets so the recording session is friction-free (Docker images pulled, npm install done, terminals laid out)
 
 Then:
-- D30 — demo script (timed 5-minute walkthrough: upload → run → leaderboard → chaos)
-- D31 — record demo video against the SEED_DEMO setup (no AWS burn needed)
-- D32 — final hackathon submission
+- D31 — record the demo video against the SEED_DEMO setup (no AWS burn)
+- D32 — final hackathon submission (bundle, tag release, submit URL)
 
-**Do NOT start D28 EKS apply without explicit `"go"` from user.** D28's artifacts (Dockerfiles, scripts, runbook) are committed; running them is a separate trigger.
+The optional EKS staging smoke (D28's runbook) is still a **separate** explicit user decision — burns real AWS credit, not required for submission.
+
+**Do NOT start without explicit `"go"` from user.**
 
 ---
 

@@ -38,7 +38,7 @@
 
 ---
 
-_Last updated: D27 complete (2026-05-16)._
+_Last updated: D29 complete (2026-05-17)._
 
 ## Tech debt picked up since last update
 
@@ -47,6 +47,8 @@ _Last updated: D27 complete (2026-05-16)._
 - D24: submission-svc build log streaming still deferred (audit item #7); UI uses synthetic line sequence as placeholder.
 - D25: IRSA service-account → IAM-role mapping not yet wired in helm chart (planned alongside external-secrets-operator).
 - D26: helm chart inlines plain `env:` for service config; long lists (Kafka brokers) should move to ConfigMap; secrets need external-secrets-operator + AWS Secrets Manager.
+- D28: go.work directive auto-bumps when running `go mod tidy` on a newer toolchain — pin `GOTOOLCHAIN=go1.26.0` locally to prevent drift.
+- D29: P99 averaging in `telemetry_1m` continuous aggregate is statistically lossy — documented in ARCHITECTURE.md §9; use `max_p99_ns` column for exact bucket maxima.
 
 ## Resolved differentiators
 
