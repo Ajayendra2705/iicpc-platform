@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1.7
+#
+# Shared Go service Dockerfile. Parameterised by SERVICE; the same image
+# template builds all 9 backend services. Workspace-aware (uses go.work) so
+# the build picks up shared proto/gen modules without retagging.
+#
+#   docker buildx build \
+#     --platform linux/arm64 \
+#     --build-arg SERVICE=bot-coordinator \
+#     -f infra/docker/Dockerfile.service \
+#     -t $REGISTRY/iicpc/bot-coordinator:$TAG \
+#     .
+#
+# Build context MUST be the repo root.
+
+ARG SERVICE
+
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS build
+ARG SERVICE
+ARG TARGETOS
+ARG TARGETARCH
+
+ENV GOFLAGS=-mod=mod \
+    CGO_ENABLED=0 \
+    GOPRIVATE=github.com/Ajayendra2705 \
+    GONOSUMCHECK=github.com/Ajayendra2705
+
+WORKDIR /src
+COPY go.work go.work.sum ./
+COPY proto proto
+COPY samples samples
+COPY services services
+
+RUN go work sync
+
+WORKDIR /src/services/${SERVICE}
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" -o /out/app .
+
+# ----------------------------------------------------------------------------
+# Runtime: distroless static, non-root uid 65532.
+# ----------------------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot
+ARG SERVICE
+LABEL org.opencontainers.image.title="iicpc/${SERVICE}"
+LABEL org.opencontainers.image.source="https://github.com/Ajayendra2705/iicpc-platform"
+LABEL org.opencontainers.image.licenses="MIT"
+
+COPY --from=build /out/app /app
+USER 65532:65532
+ENTRYPOINT ["/app"]

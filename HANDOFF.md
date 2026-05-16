@@ -2,10 +2,10 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 27 completion. **Day 28 (EKS staging smoke) next. 5 days of buffer remain.**
+> Last updated after Day 28 completion. **Day 29 (ARCHITECTURE.md polish + README) next. 4 days of buffer remain.**
 
 **GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
-**CI:** GitHub Actions, all jobs green as of commit `9762d63` (Day 27). Workflow file: `.github/workflows/ci.yml`. Jobs: per-module Go matrix (test -race, build, vet), per-module golangci-lint, buf-lint, **terraform-validate** (D25), **helm-lint + kubeconform** (D26, extended in D27 to validate chaos manifests).
+**CI:** GitHub Actions. Workflow file: `.github/workflows/ci.yml`. Jobs: per-module Go matrix (test -race, build, vet), per-module golangci-lint, buf-lint, **terraform-validate** (D25), **helm-lint + kubeconform** (D26, extended D27 to validate chaos manifests), **dockerfile-lint + service-image-build** (D28).
 
 ---
 
@@ -149,7 +149,7 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | **25** | **Terraform AWS:** VPC + 3-AZ subnets, EKS + 3 node pools (services/contestants taint/bots, Graviton AMI), RDS Postgres 16 + Timescale param group, ElastiCache Redis 7.1, MSK Serverless SASL/IAM, S3 versioned/encrypted, 10 ECR repos, **terraform-validate CI gate** | ✅ done | `0e1c0f9` |
 | **26** | **Helm umbrella chart:** 9 deploys + UI iterated from values.services, HPA (CPU 80%), PDB minAvailable=1, PSA `restricted` namespace, 5 NetworkPolicies (default-deny + DNS + same-ns + AWS data-plane, IMDS blocked). **helm-lint + kubeconform CI gate** | ✅ done | `93801dd` |
 | **27** | **Chaos test playbook:** 3 reproducible scenarios (kill bot pod, isolate contestant via NetworkPolicy, Pumba latency injection) with PowerShell scripts, static YAML templates, kubeconform CI gate, full timeline-table docs in `docs/CHAOS.md` | ✅ done | `9762d63` |
-| **28** | End-to-end smoke on EKS staging (one-shot `terraform apply` + `helm upgrade` + benchmark + measure) | ⏳ **next** | |
+| **28** | **Deploy artifacts** — shared Go service Dockerfile (parameterised by SERVICE), Next.js standalone Dockerfile, repo `.dockerignore`, `build-images.ps1` + `smoke-eks.ps1`, EKS staging runbook (`docs/EKS_STAGING_RUNBOOK.md`), hadolint + image-build CI gates | ✅ done | (this commit) |
 | 29–32 | ARCHITECTURE.md polish, README + demo script, demo video, final submit | pending | |
 
 **Current branch:** `main`. **Default PR base:** `main`.
@@ -302,21 +302,21 @@ curl http://localhost:8080/submissions/<id>
 
 ---
 
-## 11. What's Next (Day 28 — EKS staging smoke)
+## 11. What's Next (Day 29 — ARCHITECTURE.md + README polish)
 
-D28 is the first real cloud run:
-1. `terraform apply` in `infra/terraform/` (~15–20 min for VPC + EKS + RDS)
-2. Build + push service images to ECR (`--platform linux/arm64` per Graviton)
-3. `aws eks update-kubeconfig` to populate `~/.kube/config`
-4. `helm upgrade --install iicpc ./infra/helm/iicpc-platform -f values.yaml -f values.production.yaml --set global.imageRegistry=<ECR>`
-5. Apply chrony DaemonSet + sandbox-runner manifest + TimescaleDB migration
-6. Start a benchmark via `bot-coordinator`, watch end-to-end through web UI
-7. Capture: cold-start time per service, end-to-end leaderboard latency, max sustained TPS
-8. `terraform destroy` to halt the meter
+D28 delivered the **artifacts** required to run EKS staging — Dockerfiles, build scripts, smoke-test, full runbook in `docs/EKS_STAGING_RUNBOOK.md`. **The actual `terraform apply` is a separate explicit user decision** because it burns ~$0.80/hour and accumulates.
 
-Then D29–32: ARCHITECTURE.md polish, README + demo script, demo video (5 min: upload → run → leaderboard → chaos), final submit.
+D29 work:
+- Refresh `docs/ARCHITECTURE.md` with all D14–D28 components (current diagram is from D1)
+- Polish `README.md` with quick-start, demo path, the two-terminal recipe
+- Wire `IDEAS.md` "differentiator" items into either the demo plan or the deferred-list
 
-**Do NOT start without explicit `"go"` from user.** D28 burns real AWS credit.
+Then:
+- D30 — demo script (timed 5-minute walkthrough: upload → run → leaderboard → chaos)
+- D31 — record demo video against the SEED_DEMO setup (no AWS burn needed)
+- D32 — final hackathon submission
+
+**Do NOT start D28 EKS apply without explicit `"go"` from user.** D28's artifacts (Dockerfiles, scripts, runbook) are committed; running them is a separate trigger.
 
 ---
 
@@ -639,6 +639,32 @@ To switch any synthetic fallback to "Live": start the matching backend (aggregat
 ## 11p. IDEAS.md (D17+)
 
 Repo-root file `IDEAS.md` holds the differentiator backlog. Update it as new ideas surface during development. Auto-memory `project_ideas_backlog.md` tracks the discipline. Current sections: differentiators-beyond-brief, architecture-future-state, demo/UX-polish, tech-debt-to-track.
+
+---
+
+## 11r. Deploy artifacts — Detailed State (Day 28 complete)
+
+Everything required to ship the platform to a real cluster.
+
+**Dockerfiles:**
+- `infra/docker/Dockerfile.service` — one shared template for all 9 Go services; parameterised by `ARG SERVICE`. Multi-stage: golang:1.23-alpine build → distroless static debian12:nonroot runtime. Workspace-aware (copies `go.work`, `proto/`, `samples/`, `services/`). Targets specified via `--platform linux/arm64,linux/amd64`. CGO disabled, trimpath, `-s -w` strip.
+- `web/Dockerfile` — Next.js standalone build (enabled `output: 'standalone'` in `next.config.js`). 3 stages: deps (`npm ci`), build (`npm run build`), runtime (`node server.js` as uid 65532). Only ships standalone bundle + `.next/static` + `public/` — no `node_modules` in final image.
+- `.dockerignore` (repo root + `web/`) — keeps service build contexts small.
+
+**Scripts (`scripts/deploy/`):**
+- `build-images.ps1` — loops through 9 services + web; calls `docker buildx build` with the right `SERVICE` arg per service. `-Push` flag toggles `--push` vs `--load`. Default platform `linux/arm64` (matches EKS Graviton AMI).
+- `smoke-eks.ps1` — port-forwards `bot-coordinator` + `leaderboard-svc`, submits a benchmark, sleeps `DurationS + 10`, fetches `/leaderboard?top=20`, asserts the smoke contestant appears.
+
+**Runbook (`docs/EKS_STAGING_RUNBOOK.md`):**
+- 9-step recipe: prereqs → `terraform apply` → kubeconfig → ECR login + image push → chrony/sandbox-runner manifests → TimescaleDB migration → helm install → smoke test → **teardown**
+- Cost ballpark per run (~$0.80 if under an hour)
+- Pitfalls section (ECR auth expiry, RDS private subnets, `terraform destroy` reminder)
+
+**CI gates added:**
+- `dockerfile-lint` — hadolint runs against both Dockerfiles, fails on error severity
+- `service-image-build` — `docker/build-push-action` builds one service (leaderboard-svc) + web on linux/amd64 as a smoke check; no push. Catches Dockerfile regressions on every push.
+
+**Not yet executed:** `terraform apply` (real money). Artifacts are committed; pressing the button is a separate explicit decision.
 
 ---
 

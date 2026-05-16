@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Emit a self-contained server bundle for the Docker image. Includes only
+  // the runtime files Next.js actually needs — no node_modules copy.
+  output: 'standalone',
   // Proxy REST calls to leaderboard-svc to avoid browser CORS in dev.
   async rewrites() {
     // Use 127.0.0.1 (not localhost) — on Windows + Node 22 localhost resolves

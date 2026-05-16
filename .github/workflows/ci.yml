@@ -147,3 +147,44 @@ jobs:
             /tmp/dev.yaml /tmp/prod.yaml \
             infra/manifests/chaos/isolate-policy.yaml \
             infra/manifests/chaos/pumba-network-delay.yaml
+
+  dockerfile-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: hadolint (shared Go service Dockerfile)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: infra/docker/Dockerfile.service
+          failure-threshold: error
+      - name: hadolint (web/Dockerfile)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: web/Dockerfile
+          failure-threshold: error
+
+  service-image-build:
+    runs-on: ubuntu-latest
+    needs: dockerfile-lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure private module access
+        run: git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build one service image (smoke)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.service
+          platforms: linux/amd64
+          build-args: SERVICE=leaderboard-svc
+          tags: iicpc/leaderboard-svc:ci
+          push: false
+      - name: Build web image (smoke)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          file: web/Dockerfile
+          platforms: linux/amd64
+          tags: iicpc/web:ci
+          push: false

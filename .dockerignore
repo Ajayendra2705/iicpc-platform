@@ -1,0 +1,31 @@
+# Anything that doesn't need to enter the Go service build context.
+# infra/docker/Dockerfile.service copies go.work, proto/, samples/, services/.
+.git
+.github
+.claude
+.vscode
+.idea
+.sixth
+web
+docs
+IDEAS.md
+PLAN.md
+HANDOFF.md
+README.md
+"IICPC Summer Hackathon 2026.pdf"
+IDEATION_IMPLEMENTATION_PIPELINE.md
+infra/helm
+infra/terraform
+infra/kind
+infra/manifests
+sandbox-images
+scripts
+docker-compose.yaml
+**/*.md
+**/Dockerfile
+**/.dockerignore
+**/*.log
+**/node_modules
+**/dist
+**/build
+**/*.exe
