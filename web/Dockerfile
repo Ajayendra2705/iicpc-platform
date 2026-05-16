@@ -32,10 +32,10 @@ ENV NODE_ENV=production \
 RUN addgroup -S -g 65532 nextjs && \
     adduser -S -u 65532 -G nextjs nextjs
 
-# Next standalone server + static assets
+# Next standalone server + static assets. No public/ in this repo —
+# add `COPY ... /app/public ./public` back if you introduce one.
 COPY --from=build --chown=nextjs:nextjs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nextjs /app/.next/static ./.next/static
-COPY --from=build --chown=nextjs:nextjs /app/public ./public
 
 USER nextjs
 EXPOSE 3000
