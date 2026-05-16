@@ -2,10 +2,10 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 13 completion. **Day 14 (buffer + 1K load test) next.**
+> Last updated after Day 26 completion. **Day 27 (chaos tests) next. 6 days of buffer remain.**
 
 **GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
-**CI:** GitHub Actions, all jobs green as of commit `9fbac7c` (Day 13). Workflow file: `.github/workflows/ci.yml`. Per-module matrix (test + golangci-lint) + buf lint.
+**CI:** GitHub Actions, all jobs green as of commit `93801dd` (Day 26). Workflow file: `.github/workflows/ci.yml`. Jobs: per-module Go matrix (test -race, build, vet), per-module golangci-lint, buf-lint, **terraform-validate** (D25), **helm-lint + kubeconform** (D26).
 
 ---
 
@@ -134,10 +134,23 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | **11** | **bot-coordinator:** K8s Job spawner (client-go), StubSpawner, HTTP API (POST/GET/DELETE /benchmarks), graceful shutdown | ✅ done | `b159754` |
 | **12** | **Clock sync:** `clocksync.EstimateOffset` (NTP midpoint), GET /time endpoint, `clock_offset_ns` in /metrics, chrony DaemonSet manifest | ✅ done | `a15c97a` |
 | **13** | **Burst + jitter + FIX cancel:** `StartBurst` (10× for 100ms), `WithJitter` (0–5ms), FIX `OrderCancelRequest` (35=F) | ✅ done | `9fbac7c` |
-| **14** | Buffer + load test: 1K bots → reference orderbook, no errors | ⏳ **next** | |
-| 15–21 | Telemetry: ingester + aggregator (HDR histograms) + validator + leaderboard (Redis ZSET) | pending | |
-| 22–28 | Frontend (Next.js), Terraform AWS, Helm charts, chaos tests | pending | |
-| 29–32 | Docs polish, demo video, submission | pending | |
+| **14** | Found+fixed REST contract bug (ref-orderbook didn't return id); 200-worker integration test passes 0 errors; ctx-shutdown handling; `scripts/load-test.ps1` for 1K manual | ✅ done | `de045fc` |
+| **15** | **telemetry-ingester:** gRPC `IngestStream`, MPSC buffer (atomic counters, drop-on-full), Kafka (segmentio) + Stub producer, drainLoop batch flush | ✅ done | `0af7556` |
+| **16** | **aggregator:** HDR histograms per contestant (1ns–60s, 3 sig digits), 1s tumbling windows, Kafka consumer + Stub, GET /metrics endpoints | ✅ done | `fced5f3` |
+| **17** | **TimescaleDB:** SQL migration (hypertable + 1-min continuous aggregate + 7d/30d retention); aggregator Timescale writer (pgx CopyFrom); `IDEAS.md` differentiator backlog | ✅ done | `dfd623e` |
+| **18** | **validator:** sorted-slice price-time-priority orderbook, replay validator, correctness scoring (1 − mismatches/total), Kafka consumer, HTTP /validate | ✅ done | `4f8f836` |
+| **19** | **Score formula:** `0.4·latency_norm + 0.3·tps_norm + 0.3·correctness` with crash/timeout penalties, 11 tests covering perfect/clamp/penalty/edge | ✅ done | `11d4552` |
+| **20** | **leaderboard-svc:** Redis ZSET store + Stub, WS hub (bounded buffers, drop on slow), ingest poller (HTTPFetcher → score → upsert → broadcast), GET /leaderboard + WS /live | ✅ done | `5856175` |
+| **21** | **Pipeline wired:** bot-worker → telemetry-ingester gRPC streaming (non-blocking emit, reconnect+backoff). Closes the bot → ingester → Kafka → aggregator+validator → leaderboard chain | ✅ done | `735adc2` |
+| **22** | **Next.js leaderboard UI:** WS live subscription + REST fallback, sortable columns, connection-status badge, dark theme | ✅ done | `b8d22a8` |
+| **22.5** | **SEED_DEMO mode** in leaderboard-svc (6 synthetic contestants drift each tick); 127.0.0.1 defaults to bypass Windows IPv6/IPv4 loopback issue | ✅ done | `262e5cd` |
+| **23** | **Per-contestant detail page:** 4 stat tiles + Recharts (latency bars, TPS line, outcome pie). Synthetic deterministic fallback when aggregator/validator not running | ✅ done | `3472b3e` |
+| **24** | **Submission UI:** UploadForm + 7-stage SubmissionStatus visualization + LogViewer (auto-scroll, color-coded), real upload + synthetic pipeline fallback | ✅ done | `f161719` |
+| **25** | **Terraform AWS:** VPC + 3-AZ subnets, EKS + 3 node pools (services/contestants taint/bots, Graviton AMI), RDS Postgres 16 + Timescale param group, ElastiCache Redis 7.1, MSK Serverless SASL/IAM, S3 versioned/encrypted, 10 ECR repos, **terraform-validate CI gate** | ✅ done | `0e1c0f9` |
+| **26** | **Helm umbrella chart:** 9 deploys + UI iterated from values.services, HPA (CPU 80%), PDB minAvailable=1, PSA `restricted` namespace, 5 NetworkPolicies (default-deny + DNS + same-ns + AWS data-plane, IMDS blocked). **helm-lint + kubeconform CI gate** | ✅ done | `93801dd` |
+| **27** | Chaos tests (Pumba / kill pods / network jitter); EKS staging smoke | ⏳ **next** | |
+| 28 | End-to-end smoke on EKS staging | pending | |
+| 29–32 | ARCHITECTURE.md polish, README + demo script, demo video, final submit | pending | |
 
 **Current branch:** `main`. **Default PR base:** `main`.
 
@@ -277,28 +290,48 @@ curl http://localhost:8080/submissions/<id>
 
 ## 10. CI / Quality Gates
 
-`.github/workflows/ci.yml` runs on push/PR:
-- `go vet ./...` per module
-- `go test -race -count=1 ./...` per module
-- `go build ./...` per module
-- `buf lint`
-- `golangci-lint run` (config in `.golangci.yml`: errcheck, gosimple, govet, ineffassign, staticcheck, unused, gofmt, misspell, unconvert)
+`.github/workflows/ci.yml` runs on push/PR — **5 job categories, all green as of D26**:
 
-`make ci-local` mirrors CI minus `-race` (Windows GCC limitation).
+1. **test matrix** (per Go module): `go vet ./...`, `go test -race -count=1 ./...`, `go build ./...`
+2. **golangci-lint matrix** (per Go module): config in `.golangci.yml` (errcheck, gosimple, govet, ineffassign, staticcheck, unused, gofmt, misspell, unconvert)
+3. **proto-lint**: `buf lint`
+4. **terraform-validate** (D25): `terraform fmt -check`, `init -backend=false`, `validate` against terraform 1.15.3
+5. **helm-lint** (D26): `helm lint`, `helm template` (dev + prod overlays), `kubeconform` schema check against K8s 1.30
+
+`make ci-local` mirrors the Go matrix minus `-race` (Windows GCC limitation).
 
 ---
 
-## 11. What's Next (Day 14)
+## 11. What's Next (Day 27 — chaos tests)
 
-Day 14 is a buffer + load-test day. Goal: run 1 000 bot goroutines against the reference orderbook, confirm zero errors, measure P99 latency, commit results.
+Day 27 is chaos testing per PLAN:
+- Kill bot pod mid-benchmark → expect self-heal (Deployment + HPA)
+- Kill contestant pod → expect score penalty applied
+- Network jitter via toxiproxy or Pumba
+- Document each scenario as a reproducible script under `scripts/chaos/`
 
-Steps (when user says `"go"`):
-1. Start reference-orderbook: `cd samples/reference-orderbook && go run .`
-2. Start bot-worker with `NUM_WORKERS=1000 TARGET_URL=http://localhost:$RUNTIME_PORT ARRIVAL_MODE=poisson ORDERS_PER_SECOND=50`
-3. After 30s, hit `/metrics` — check `errors == 0`, note P50/P90/P99.
-4. Optionally enable burst: `BURST_ENABLED=true BURST_EVERY_S=10 BURST_DURATION_MS=100`
+Then D28 is EKS staging smoke (one-shot `terraform apply` + `helm upgrade` + run a benchmark + measure end-to-end latency). After that: docs polish, demo script, video, submit.
 
 **Do NOT start without explicit `"go"` from user.**
+
+---
+
+## 11h. Two-terminal demo recipe (no Docker, no Kafka, no cluster)
+
+```powershell
+# Terminal 1 — leaderboard in SEED_DEMO mode (no upstreams needed)
+cd services\leaderboard-svc; $env:SEED_DEMO = "true"; go run .
+
+# Terminal 2 — Next.js UI
+cd web; npm run dev    # http://localhost:3000
+```
+
+Browser:
+- `/`             — live leaderboard (WS pulse badge, sortable, 6 teams drifting)
+- `/contestant/team-alpha` — 4 stat tiles + 3 Recharts visualizations (synthetic-data badge)
+- `/submit`       — upload form + 7-stage pipeline visualization + log viewer (synthetic pipeline badge)
+
+To switch any synthetic fallback to "Live": start the matching backend (aggregator/validator/submission-svc) on its default port. UI auto-detects via 404 fallback logic in hooks.
 
 ---
 
@@ -445,6 +478,166 @@ Steps (when user says `"go"`):
 
 ---
 
+## 11i. telemetry-ingester — Detailed State (Day 15 complete)
+
+**Entry:** `services/telemetry-ingester/main.go`. gRPC `IngestStream` (client streaming) → bounded MPSC buffer → batched Kafka publish.
+
+| Env | Default | Notes |
+|---|---|---|
+| `GRPC_ADDR` | `:9091` | |
+| `BUFFER_CAPACITY` | `16384` | drop-on-full counter exposed via atomics |
+| `BATCH_SIZE` | `256` | publish triggers at this size OR `FLUSH_INTERVAL_MS` |
+| `FLUSH_INTERVAL_MS` | `100` | |
+| `PRODUCER_KIND` | `stub` | `stub` \| `kafka` |
+| `KAFKA_BROKERS` / `KAFKA_TOPIC` | `localhost:9092` / `telemetry-events` | |
+
+**Internal packages:**
+- `internal/buffer`: MPSC channel + atomic pushed/dropped, non-blocking Push, Recv exposes channel for single consumer
+- `internal/producer`: `Producer` interface, `Kafka` (segmentio, protobuf, contestant_id key) + `Stub`
+- `internal/server`: gRPC `TelemetryIngester` impl; `IngestStream` reads stream → `buf.Push`, returns `IngestAck{events_received}`
+
+**Tests:** buffer (6 incl. 100×100 concurrent push), producer stub (3), server (3 via bufconn). All pass.
+
+---
+
+## 11j. aggregator — Detailed State (Days 16–17 complete)
+
+**Entry:** `services/aggregator/main.go`. Kafka consumer → HDR histograms per contestant → 1s tumbling windows → TimescaleDB.
+
+| Env | Default | Notes |
+|---|---|---|
+| `HTTP_ADDR` | `:8084` | |
+| `CONSUMER_KIND` | `stub` | `stub` \| `kafka` |
+| `WRITER_KIND` | `stub` | `stub` \| `timescale` |
+| `WINDOW_MS` | `1000` | |
+| `POSTGRES_DSN` | — | required when WRITER_KIND=timescale |
+
+**Internal packages:**
+- `internal/windowing`: `Aggregator` — per-contestant `hdrhistogram.New(1, 60_000_000_000, 3)`, `Record` adds to open window, `Flush(t)` rolls every open window into `Snapshot{P50/P90/P99/P999/TPS/count/rejected/timeouts}`
+- `internal/consumer`: Kafka (segmentio + protobuf decode + offset commit) + Stub
+- `internal/writer`: `Timescale` (`pgx.CopyFrom`) + `Stub`
+- `internal/httpapi`: `GET /healthz`, `GET /metrics`, `GET /metrics/{contestant_id}`
+
+**Tests:** 19 across 4 packages incl. P50≈500ms ±1% across 1000 samples, per-contestant isolation, error counting, 50-goroutine concurrent writes.
+
+**TimescaleDB schema:** `infra/timescaledb/migrations/001_telemetry_schema.sql` — `telemetry_snapshots` hypertable (1-day chunks) + `telemetry_1m` continuous aggregate (30s refresh, 10min lookback) + retention (7d raw / 30d 1m).
+
+---
+
+## 11k. validator — Detailed State (Day 18 complete)
+
+**Entry:** `services/validator/main.go`. Replay each contestant's event stream through a reference price-time-priority orderbook, compare contestant-reported FilledQuantity, drop correctness for mismatches.
+
+| Env | Default | Notes |
+|---|---|---|
+| `HTTP_ADDR` | `:8085` | |
+| `CONSUMER_KIND` | `stub` | `stub` \| `kafka` |
+| `KAFKA_*` | — | per consumer kind |
+
+**Internal packages:**
+- `internal/replay/book`: sorted-slice orderbook, `Place` walks opposing levels, `Cancel` by id, BestBid/BestAsk. Correctness > speed (validator is offline)
+- `internal/replay/validator`: per-contestant Book + counters; on LIMIT/MARKET → expected fill vs `event.FilledQuantity`; CANCEL → book op but not counted; `Correctness = 1 − mismatches/total`
+- `internal/consumer` + `internal/httpapi`: same shape as aggregator
+
+**Side encoding:** Heuristic — order_id prefix `s-` = Sell, else Buy. (Proto doesn't carry side; planned proto extension noted in IDEAS.md.)
+
+**Tests:** 22 — book matching/priority/multi-level walk/cancel, validator perfect-correctness/mismatch detection/per-contestant isolation, HTTP endpoints, consumer replay.
+
+---
+
+## 11l. leaderboard-svc — Detailed State (Days 19–20 + 22.5 SEED_DEMO)
+
+**Entry:** `services/leaderboard-svc/main.go`. Polls aggregator + validator, computes composite score, upserts to Redis ZSET, broadcasts top-N over WS.
+
+| Env | Default | Notes |
+|---|---|---|
+| `HTTP_ADDR` | `:8086` | |
+| `STORE_KIND` | `stub` | `stub` \| `redis` |
+| `REDIS_ADDR` / `REDIS_KEY` | `localhost:6379` / `leaderboard:scores` | |
+| `AGGREGATOR_URL` | `http://127.0.0.1:8084` | **127.0.0.1, NOT localhost** (Windows IPv6 trap) |
+| `VALIDATOR_URL` | `http://127.0.0.1:8085` | same |
+| `TICK_MS` | `1000` | |
+| `TOP_N` | `100` | |
+| `SEED_DEMO` | `false` | **`true` injects 6 synthetic contestants drifting each tick; bypasses ingester** |
+
+**Internal packages:**
+- `internal/score` (D19): `Calculator` — `base = 1000·(0.4·latency_norm + 0.3·tps_norm + 0.3·correctness)`, `final = max(0, round(base) − crashes·10000 − timeouts·1000)`. Configurable weights/caps/penalties; zero-value Config falls back to defaults
+- `internal/store`: `Store` interface, `Redis` (go-redis v9 ZADD/ZREVRANGE), `Stub` (sorted-map)
+- `internal/ws`: bounded fan-out hub, slow consumers drop, atomic Count
+- `internal/ingest`: Fetcher interface, `HTTPFetcher`, `Ingester.Tick` (fetch → score → upsert → broadcast)
+- `internal/seeder` (D22.5): demo data generator
+- `internal/httpapi`: `GET /healthz`, `GET /leaderboard?top=N`, `WS /live` (gorilla/websocket, hub-driven push)
+
+**Tests:** 28 across all packages incl. score perfect/clamp/penalty/never-negative, hub register/broadcast/slow-drop, ingester httptest end-to-end, seeder bounded scores.
+
+---
+
+## 11m. web/ — Detailed State (Days 22–24)
+
+**Tech:** Next.js 15.1 + React 19 + TypeScript 5.6 + recharts 2.13. App Router. No CSS framework — single `globals.css`, ~520 lines.
+
+| Env | Default | Notes |
+|---|---|---|
+| `LEADERBOARD_URL` | `http://127.0.0.1:8086` | rewrite target for `/api/leaderboard` |
+| `AGGREGATOR_URL` | `http://127.0.0.1:8084` | rewrite target for `/api/metrics/:id` |
+| `VALIDATOR_URL` | `http://127.0.0.1:8085` | rewrite target for `/api/validate/:id` |
+| `SUBMISSION_URL` | `http://127.0.0.1:8080` | rewrite target for `/api/submissions{,/:id}` |
+| `NEXT_PUBLIC_LEADERBOARD_WS` | `ws://127.0.0.1:8086/live` | browser WS URL |
+
+**Pages:**
+- `/` (`app/page.tsx`) — `useLeaderboard` hook → WS subscription with REST fallback, sortable table, top-1 highlight, "Submit code" nav
+- `/contestant/[id]` (`app/contestant/[id]/page.tsx`) — `useContestantMetrics` polls aggregator+validator every 1s, 60-sample TPS history; **deterministic synthetic fallback** keyed off contestant-id hash when both upstreams 404; renders 4 stat tiles + LatencyChart (BarChart auto-units ns/µs/ms) + TPSChart (LineChart) + ErrorBreakdown (PieChart with correctness summary)
+- `/submit` (`app/submit/page.tsx`) — `useSubmission` hook: real upload + 1.5s status polling, OR synthetic 7-stage pipeline advancing every 1.2s with log lines; UploadForm + SubmissionStatus (pulsing current step) + LogViewer (color-coded auto-scroll)
+
+**Build:** `npm run typecheck` + `npm run build` both clean. Production build emits 3 routes: `/` (static), `/contestant/[id]` (dynamic SSR), `/submit` (static + WS upgrades server-side).
+
+---
+
+## 11n. infra/terraform — Detailed State (Day 25 complete)
+
+`infra/terraform/` — AWS production scaffold. **13 files, ~660 lines HCL**, validated via CI gate.
+
+- `vpc.tf` — terraform-aws-modules/vpc v5.13, 3-AZ public+private, NAT (single in staging / per-AZ in prod), ALB-controller subnet tags
+- `eks.tf` — terraform-aws-modules/eks v20.24, 3 managed node pools (services/contestants taint/bots), Graviton AL2023 AMI, coredns + vpc-cni + ebs-csi addons
+- `rds.tf` — Postgres 16 + parameter group loading `timescaledb` in `shared_preload_libraries`, gp3 encrypted, enhanced monitoring, multi-AZ in prod
+- `redis.tf` — ElastiCache 7.1, at-rest+transit encryption, failover only in prod
+- `msk.tf` — MSK Serverless SASL/IAM on 9098
+- `s3.tf` — submissions bucket: versioned, AES-256, all-public-blocked, 30d noncurrent expiration, **`filter {}` in lifecycle rule** to suppress future-major warning
+- `ecr.tf` — 10 repos (incl. web), scan-on-push, lifecycle keeps 20 tagged + expires untagged after 7d
+- `outputs.tf` — cluster endpoint, kubectl bootstrap cmd, all endpoints, ECR repo URL map
+
+**Cost ballpark (README):** ~$19/day staging, ~$60/day prod (ap-south-1, on-demand).
+
+**Validation:** Local + CI run `terraform fmt -check`, `init -backend=false`, `validate` — **0 warnings, 0 errors**.
+
+**Not yet wired:** IRSA service-account ↔ IAM role mappings (D26 helm gap), AWS Secrets Manager backend for `db_password`. Tracked in IDEAS.md.
+
+---
+
+## 11o. infra/helm — Detailed State (Day 26 complete)
+
+`infra/helm/iicpc-platform/` — single umbrella chart, 12 files. **9 deployments + web UI iterated from `values.services`** — adding a 10th service is one row in values, not a new chart.
+
+**Per-service auto-generated:** Deployment (PSA-restricted-compliant securityContext: runAsNonRoot, readOnlyRootFilesystem, drop ALL caps, seccomp RuntimeDefault, tmp emptyDir 64Mi) + Service (ClusterIP) + ServiceAccount + HPA (CPU 80%) + PDB (minAvailable=1).
+
+**Cluster-wide once:**
+- Namespace with `pod-security.kubernetes.io/{enforce,audit,warn}: restricted`
+- **5 NetworkPolicies:** default-deny baseline, allow-same-namespace (ingress + egress), DNS egress to kube-dns, AWS data-plane egress (only submission-svc/telemetry-ingester/aggregator/validator/leaderboard-svc can reach S3/RDS/Redis/MSK), **IMDS 169.254.169.254 explicitly blocked**
+
+**Values overlays:** `values.yaml` (dev defaults, localhost:5000 registry) + `values.production.yaml` (raises replicas + resource requests, ECR registry placeholder).
+
+**Validation:** Local `helm lint` clean, `helm template` renders 1610 lines. CI gate runs `helm lint`, both renders, then **kubeconform** schema-validates against K8s 1.30 (no cluster needed).
+
+**Not yet wired:** IRSA SA annotations, external-secrets-operator, Ingress (class choice between ALB controller vs nginx), ConfigMap for long env-var lists.
+
+---
+
+## 11p. IDEAS.md (D17+)
+
+Repo-root file `IDEAS.md` holds the differentiator backlog. Update it as new ideas surface during development. Auto-memory `project_ideas_backlog.md` tracks the discipline. Current sections: differentiators-beyond-brief, architecture-future-state, demo/UX-polish, tech-debt-to-track.
+
+---
+
 ## 12. Memory / Persistence Notes for Future Claude
 
 - The user has a `caveman` skill active by default in this project. Respect it.
@@ -460,16 +653,26 @@ Run these to verify state:
 
 ```powershell
 git log --oneline -10
-# expect (newest first): 9fbac7c, a15c97a, b159754, effb317, 8ea33e6, f9a8625, cbd2834, fd77674, f53a549, 018b413
+# expect (newest first), most recent first: 93801dd (D26 helm), 0e1c0f9 (D25-fix), f547c8a (D25), f161719 (D24), 3472b3e (D23), 262e5cd (D22.5 seed+ipv4), b8d22a8 (D22), 735adc2 (D21), 5856175 (D20), 11d4552 (D19)
 
 git status --short
 # expect: clean except .claude/ and IDEATION_IMPLEMENTATION_PIPELINE.md (untracked, intentional)
 
-go work sync; foreach ($m in (Get-Content go.work | Select-String "services/|proto/gen/go" | ForEach-Object { ($_ -split '\s+')[1] })) { Write-Host "== $m =="; Push-Location $m; go vet ./...; go build ./...; Pop-Location }
-# expect: silent (clean) for all 10 modules
+# Workspace-wide Go check
+foreach ($m in (Get-Content go.work | Select-String "services/|samples/" | ForEach-Object { ($_ -split '\s+')[1] })) { Push-Location $m; $null = go test ./... 2>&1; Write-Host "$(if ($LASTEXITCODE -eq 0) {'PASS'} else {'FAIL'}) $m"; Pop-Location }
+# expect: 10 PASS
 
-cd services/submission-svc; go test ./...
-# expect: 16 tests pass across 4 packages
+# Web typecheck
+cd web; npm run typecheck
+# expect: no errors
+
+# Terraform
+cd infra/terraform; terraform validate
+# expect: Success! The configuration is valid.
+
+# Helm
+cd infra/helm; helm lint iicpc-platform
+# expect: 0 chart(s) failed
 ```
 
 If any of those fail, do NOT start new work. Diagnose first.

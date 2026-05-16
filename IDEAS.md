@@ -38,4 +38,16 @@
 
 ---
 
-_Last updated: D17 start (2026-05-15)._
+_Last updated: D26 complete (2026-05-16)._
+
+## Tech debt picked up since last update
+
+- D21: bot-worker → telemetry-ingester wire is live (closed pre-existing TODO).
+- D22.5: Windows IPv6 loopback fix — all default endpoints use 127.0.0.1 not localhost. Document in SETUP.md if not already there.
+- D24: submission-svc build log streaming still deferred (audit item #7); UI uses synthetic line sequence as placeholder.
+- D25: IRSA service-account → IAM-role mapping not yet wired in helm chart (planned alongside external-secrets-operator).
+- D26: helm chart inlines plain `env:` for service config; long lists (Kafka brokers) should move to ConfigMap; secrets need external-secrets-operator + AWS Secrets Manager.
+
+## Resolved differentiators
+
+(None yet — all D29+ work.)
