@@ -14,6 +14,7 @@ import (
 	"github.com/Ajayendra2705/iicpc-platform/services/aggregator/internal/consumer"
 	"github.com/Ajayendra2705/iicpc-platform/services/aggregator/internal/httpapi"
 	"github.com/Ajayendra2705/iicpc-platform/services/aggregator/internal/windowing"
+	"github.com/Ajayendra2705/iicpc-platform/services/aggregator/internal/writer"
 )
 
 func main() {
@@ -21,6 +22,7 @@ func main() {
 
 	httpAddr := envOr("HTTP_ADDR", ":8084")
 	consumerKind := envOr("CONSUMER_KIND", "stub")
+	writerKind := envOr("WRITER_KIND", "stub")
 	windowMs := envInt("WINDOW_MS", 1000)
 
 	var cons consumer.Consumer
@@ -41,13 +43,33 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	var w writer.Writer
+	switch writerKind {
+	case "timescale":
+		dsn := envOr("POSTGRES_DSN", "")
+		if dsn == "" {
+			log.Error("WRITER_KIND=timescale requires POSTGRES_DSN")
+			os.Exit(1)
+		}
+		ts, err := writer.NewTimescaleFromDSN(ctx, dsn)
+		if err != nil {
+			log.Error("connect timescale", "err", err)
+			os.Exit(1)
+		}
+		w = ts
+		log.Info("timescale writer connected")
+	default:
+		w = writer.NewStub()
+		log.Info("stub writer (no persistence)")
+	}
+
 	go func() {
 		if err := cons.Consume(ctx, agg.Record); err != nil {
 			log.Error("consumer", "err", err)
 		}
 	}()
 
-	go tickLoop(ctx, agg, time.Duration(windowMs)*time.Millisecond, log)
+	go tickLoop(ctx, agg, w, time.Duration(windowMs)*time.Millisecond, log)
 
 	srv := &http.Server{
 		Addr:              httpAddr,
@@ -69,9 +91,10 @@ func main() {
 	defer cancel()
 	_ = srv.Shutdown(shutCtx)
 	_ = cons.Close()
+	_ = w.Close()
 }
 
-func tickLoop(ctx context.Context, agg *windowing.Aggregator, window time.Duration, log *slog.Logger) {
+func tickLoop(ctx context.Context, agg *windowing.Aggregator, w writer.Writer, window time.Duration, log *slog.Logger) {
 	ticker := time.NewTicker(window)
 	defer ticker.Stop()
 	for {
@@ -80,6 +103,12 @@ func tickLoop(ctx context.Context, agg *windowing.Aggregator, window time.Durati
 			return
 		case t := <-ticker.C:
 			snaps := agg.Flush(t)
+			if len(snaps) == 0 {
+				continue
+			}
+			if err := w.WriteSnapshots(ctx, snaps); err != nil {
+				log.Error("write snapshots", "err", err, "count", len(snaps))
+			}
 			for _, s := range snaps {
 				log.Info("window flushed",
 					"contestant_id", s.ContestantID,
