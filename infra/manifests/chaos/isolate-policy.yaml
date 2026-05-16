@@ -1,0 +1,16 @@
+# Deny-all NetworkPolicy template for the scenario-2 chaos test. Applied
+# dynamically by scripts/chaos/isolate-contestant.ps1 with the contestant id
+# patched into the label selector — this committed file documents the shape
+# and is what kubeconform validates in CI.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chaos-isolate-template
+  namespace: iicpc-contestants
+spec:
+  podSelector:
+    matchLabels:
+      chaos.iicpc.io/isolated: "REPLACE_CONTESTANT_ID"
+  policyTypes:
+    - Ingress
+    - Egress

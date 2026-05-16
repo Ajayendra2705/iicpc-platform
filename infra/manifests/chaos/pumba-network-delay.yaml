@@ -1,0 +1,34 @@
+# Template Job for the scenario-3 latency-injection chaos test. Real runs
+# come from scripts/chaos/inject-latency.ps1 which patches duration / delay
+# / jitter / selector regex per invocation; this file is the static shape
+# that kubeconform validates in CI.
+#
+# Requires nodes that allow NET_ADMIN — won't work on gVisor pods. See
+# docs/CHAOS.md "Limitations" for the workaround.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pumba-netem-template
+  namespace: iicpc-contestants
+spec:
+  ttlSecondsAfterFinished: 60
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      hostPID: true
+      containers:
+        - name: pumba
+          image: gaiaadm/pumba:0.10.2
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          args:
+            - "--log-level=info"
+            - "netem"
+            - "--duration=30s"
+            - "--tc-image=gaiadocker/iproute2:latest"
+            - "delay"
+            - "--time=100"
+            - "--jitter=20"
+            - "re2:^contestant"

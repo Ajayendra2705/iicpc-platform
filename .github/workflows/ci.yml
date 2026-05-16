@@ -139,8 +139,11 @@ jobs:
             -f infra/helm/iicpc-platform/values.yaml \
             -f infra/helm/iicpc-platform/values.production.yaml \
             > /tmp/prod.yaml
-      - name: kubeconform (manifest schema check)
+      - name: kubeconform (manifest schema check — helm + chaos + sandbox)
         run: |
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
             | tar -xz -C /tmp kubeconform
-          /tmp/kubeconform -strict -summary -kubernetes-version 1.30.0 /tmp/dev.yaml /tmp/prod.yaml
+          /tmp/kubeconform -strict -summary -kubernetes-version 1.30.0 \
+            /tmp/dev.yaml /tmp/prod.yaml \
+            infra/manifests/chaos/isolate-policy.yaml \
+            infra/manifests/chaos/pumba-network-delay.yaml
