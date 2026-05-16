@@ -25,8 +25,7 @@ ARG TARGETARCH
 # code locally, Go still validates pseudo-versions via git.
 RUN apk add --no-cache git ca-certificates
 
-ENV GOFLAGS=-mod=mod \
-    CGO_ENABLED=0 \
+ENV CGO_ENABLED=0 \
     GOPRIVATE=github.com/Ajayendra2705 \
     GONOSUMCHECK=github.com/Ajayendra2705 \
     GOTOOLCHAIN=auto
