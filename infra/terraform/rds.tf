@@ -41,13 +41,13 @@ resource "aws_db_parameter_group" "timescale" {
 resource "aws_db_instance" "telemetry" {
   identifier = "${var.cluster_name}-telemetry"
 
-  engine               = "postgres"
-  engine_version       = "16.4"
-  instance_class       = "db.t4g.medium"
-  allocated_storage    = 100
+  engine                = "postgres"
+  engine_version        = "16.4"
+  instance_class        = "db.t4g.medium"
+  allocated_storage     = 100
   max_allocated_storage = 500
-  storage_type         = "gp3"
-  storage_encrypted    = true
+  storage_type          = "gp3"
+  storage_encrypted     = true
 
   db_name  = "telemetry"
   username = "iicpc"
