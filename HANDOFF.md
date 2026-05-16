@@ -2,7 +2,7 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 29 completion. **Day 30 (demo script) next. 3 days of buffer remain.**
+> Last updated after Day 30 completion. **Day 31 (record demo video) next. 2 days of buffer remain.**
 
 **GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
 **CI:** GitHub Actions. Workflow file: `.github/workflows/ci.yml`. Jobs: per-module Go matrix (test -race, build, vet), per-module golangci-lint, buf-lint, **terraform-validate** (D25), **helm-lint + kubeconform** (D26, extended D27 to validate chaos manifests), **dockerfile-lint + service-image-build** (D28).
@@ -150,8 +150,11 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | **26** | **Helm umbrella chart:** 9 deploys + UI iterated from values.services, HPA (CPU 80%), PDB minAvailable=1, PSA `restricted` namespace, 5 NetworkPolicies (default-deny + DNS + same-ns + AWS data-plane, IMDS blocked). **helm-lint + kubeconform CI gate** | ✅ done | `93801dd` |
 | **27** | **Chaos test playbook:** 3 reproducible scenarios (kill bot pod, isolate contestant via NetworkPolicy, Pumba latency injection) with PowerShell scripts, static YAML templates, kubeconform CI gate, full timeline-table docs in `docs/CHAOS.md` | ✅ done | `9762d63` |
 | **28** | **Deploy artifacts** — shared Go service Dockerfile (parameterised by SERVICE), Next.js standalone Dockerfile, repo `.dockerignore`, `build-images.ps1` + `smoke-eks.ps1`, EKS staging runbook (`docs/EKS_STAGING_RUNBOOK.md`), hadolint + image-build CI gates. **Took 8 fix commits** to align Go versions (1.22→1.26) across go.work, go.mods, Dockerfile base, and wire `GITHUB_TOKEN` build secret for private-module fetch. | ✅ done | `eda8df2`→`ac5a850` |
-| **29** | **Docs blueprint** — ARCHITECTURE.md full rewrite with 3 Mermaid diagrams (system, order→pixel sequence, deployment topology) + service catalog + score-formula spec + perf-targets-vs-delivered table. README.md rewritten with 2-terminal quick-start, status matrix, layout, caveats. | ✅ done | (this commit) |
-| 30–32 | Demo script (D30), demo video (D31), final submit (D32) | pending | |
+| **29** | **Docs blueprint** — ARCHITECTURE.md full rewrite with 3 Mermaid diagrams (system, order→pixel sequence, deployment topology) + service catalog + score-formula spec + perf-targets-vs-delivered table. README.md rewritten with 2-terminal quick-start, status matrix, layout, caveats. | ✅ done | `2c46485` |
+| **29.5** | CI cost guard: `paths-ignore` for `**/*.md` + `docs/**` — doc-only commits no longer burn Actions minutes (90% of 2000-min quota used; resets June 1) | ✅ done | `b2c914b` |
+| **30** | **Demo script** (`docs/DEMO_SCRIPT.md`) — recording-ready 5-min walkthrough with 5 scenes, exact timings, terminal commands, narration scripts, recovery plan, post-production checklist. **Contestant walkthrough** (`docs/SAMPLE_SUBMISSION_WALKTHROUGH.md`) — runtime contract, build constraints, local smoke test, upload via UI/API, score formula explainer, debugging guide, pre-submit checklist. | ✅ done | (this commit) |
+| 31 | Record demo video against SEED_DEMO setup (no AWS burn) | pending | |
+| 32 | Final hackathon submission (tag release, submit URL) | pending | |
 
 **Current branch:** `main`. **Default PR base:** `main`.
 
@@ -303,22 +306,25 @@ curl http://localhost:8080/submissions/<id>
 
 ---
 
-## 11. What's Next (Day 30 — demo script)
+## 11. What's Next (Day 31 — record the demo video)
 
-D29 closed: ARCHITECTURE.md is now the canonical spec (Mermaid + ASCII), README.md is judge-friendly with a 2-terminal quick-start.
+D30 closed: `docs/DEMO_SCRIPT.md` is the recording-ready 5-minute script. `docs/SAMPLE_SUBMISSION_WALKTHROUGH.md` is the contestant-facing guide.
 
-D30 work:
-- Write `docs/DEMO_SCRIPT.md` — timed 5-minute walkthrough mapping each scene to commands + UI captures
-- Identify "money shots" for the demo video: upload flow, live leaderboard with WS pulse, detail page chart transitions, chaos suite (kill-bot self-heal + isolate-contestant score dip)
-- Pre-cache assets so the recording session is friction-free (Docker images pulled, npm install done, terminals laid out)
+D31 work (recording):
+1. Follow `docs/DEMO_SCRIPT.md` "Pre-recording setup" section — window layout, pre-cache npm install, OBS scenes
+2. Do **one rehearsal pass without recording** to time it (target 4:30–5:00)
+3. Record with OBS at 1080p / 30 fps / h.264
+4. Splice retakes via the recovery-plan strategies in the script
+5. Post-process per checklist: trim → boost audio → title card → captions → export under 100 MB
 
 Then:
-- D31 — record the demo video against the SEED_DEMO setup (no AWS burn)
-- D32 — final hackathon submission (bundle, tag release, submit URL)
-
-The optional EKS staging smoke (D28's runbook) is still a **separate** explicit user decision — burns real AWS credit, not required for submission.
+- D32 — final submission. Tag release `v0.1.0-submission`, push tag, verify the public URL works, submit through portal.
 
 **Do NOT start without explicit `"go"` from user.**
+
+Optional pre-recording polish (only if time permits):
+- Add a "public/" stub with a favicon so the web UI tab shows a clean icon
+- Pre-populate a few `samples/smoke-go.tar.gz` archives so the upload demo isn't picking random files
 
 ---
 
