@@ -3,7 +3,21 @@ name: CI
 on:
   push:
     branches: [main, master]
+    # Docs-only commits skip CI to stay under the 2000-min/month free tier.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+      - "IDEAS.md"
+      - "HANDOFF.md"
+      - "README.md"
+      - "PLAN.md"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
 
 permissions:
   contents: read
