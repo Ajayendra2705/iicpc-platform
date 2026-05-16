@@ -13,6 +13,7 @@ import (
 	"github.com/Ajayendra2705/iicpc-platform/services/leaderboard-svc/internal/httpapi"
 	"github.com/Ajayendra2705/iicpc-platform/services/leaderboard-svc/internal/ingest"
 	"github.com/Ajayendra2705/iicpc-platform/services/leaderboard-svc/internal/score"
+	"github.com/Ajayendra2705/iicpc-platform/services/leaderboard-svc/internal/seeder"
 	"github.com/Ajayendra2705/iicpc-platform/services/leaderboard-svc/internal/store"
 	"github.com/Ajayendra2705/iicpc-platform/services/leaderboard-svc/internal/ws"
 )
@@ -22,10 +23,11 @@ func main() {
 
 	httpAddr := envOr("HTTP_ADDR", ":8086")
 	storeKind := envOr("STORE_KIND", "stub")
-	aggURL := envOr("AGGREGATOR_URL", "http://localhost:8084")
-	valURL := envOr("VALIDATOR_URL", "http://localhost:8085")
+	aggURL := envOr("AGGREGATOR_URL", "http://127.0.0.1:8084")
+	valURL := envOr("VALIDATOR_URL", "http://127.0.0.1:8085")
 	tickMs := envInt("TICK_MS", 1000)
 	topN := envInt("TOP_N", 100)
+	seedDemo := envOr("SEED_DEMO", "false") == "true"
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -50,16 +52,20 @@ func main() {
 	}
 
 	hub := ws.NewHub()
-	ing := &ingest.Ingester{
-		Fetcher:  ingest.NewHTTPFetcher(aggURL, valURL),
-		Calc:     score.New(score.DefaultConfig()),
-		Store:    s,
-		Hub:      hub,
-		TopN:     topN,
-		Interval: time.Duration(tickMs) * time.Millisecond,
-		Log:      log,
+	if seedDemo {
+		go seeder.Run(ctx, s, hub, topN, time.Duration(tickMs)*time.Millisecond, log)
+	} else {
+		ing := &ingest.Ingester{
+			Fetcher:  ingest.NewHTTPFetcher(aggURL, valURL),
+			Calc:     score.New(score.DefaultConfig()),
+			Store:    s,
+			Hub:      hub,
+			TopN:     topN,
+			Interval: time.Duration(tickMs) * time.Millisecond,
+			Log:      log,
+		}
+		go ing.Run(ctx)
 	}
-	go ing.Run(ctx)
 
 	srv := &http.Server{
 		Addr:              httpAddr,

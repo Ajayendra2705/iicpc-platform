@@ -3,7 +3,9 @@ const nextConfig = {
   reactStrictMode: true,
   // Proxy REST calls to leaderboard-svc to avoid browser CORS in dev.
   async rewrites() {
-    const leaderboard = process.env.LEADERBOARD_URL || 'http://localhost:8086';
+    // Use 127.0.0.1 (not localhost) — on Windows + Node 22 localhost resolves
+    // to ::1 first, but Go listeners default to IPv4-only, causing ECONNREFUSED.
+    const leaderboard = process.env.LEADERBOARD_URL || 'http://127.0.0.1:8086';
     return [
       {
         source: '/api/leaderboard',

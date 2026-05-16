@@ -5,7 +5,7 @@ import { StatusBadge } from "./components/StatusBadge";
 import { useLeaderboard } from "./hooks/useLeaderboard";
 
 const WS_URL =
-  process.env.NEXT_PUBLIC_LEADERBOARD_WS ?? "ws://localhost:8086/live";
+  process.env.NEXT_PUBLIC_LEADERBOARD_WS ?? "ws://127.0.0.1:8086/live";
 const REST_URL = "/api/leaderboard?top=100";
 
 export default function Home() {
