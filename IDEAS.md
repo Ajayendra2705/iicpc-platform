@@ -111,3 +111,17 @@ _Last updated: D32 — differentiator brainstorm + first two shipped (2026-05-17
   a 50-point CDF + percentiles + TPS to JSON. Measured: **13 021 sustained
   req/s, 0.003 % error rate, p99 = 6.4 ms**. Full report:
   `docs/PERFORMANCE_REPORT.md` + raw JSON `docs/perf-report-5k.json`.
+- **E1 — Sandbox attack suite (shipped D32, 2026-05-17):** 12 attacks (6
+  admission-time + 6 runtime) prove each defence layer in the contestant
+  pod's securityContext actually blocks a concrete attack. Runner script
+  `scripts/sandbox-attack-test.ps1` produces `docs/SANDBOX_ATTACK_REPORT.md`
+  with verified outcomes; exits non-zero on any ESCALATED → CI-wireable
+  as a regression guard against future PRs that weaken isolation.
+- **C2 — Replay determinism check (shipped D32, 2026-05-17):**
+  `services/aggregator/internal/windowing/determinism_test.go` proves the
+  scoring pipeline (synthetic-event-stream → aggregator → score formula)
+  is byte-identical across replays. Two runs with the same seed + injected
+  clock produce the same SHA-256 over the final snapshot stream AND the
+  same derived score vector. Added `windowing.WithClock` option for the
+  clock-injection plumbing. Catches hidden non-determinism (map-iteration
+  order leaks, unseeded RNG, time.Now in hot path) at unit-test time.

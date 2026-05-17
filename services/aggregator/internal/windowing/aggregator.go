@@ -67,11 +67,27 @@ type flushed struct {
 	hist *hdrhistogram.Histogram
 }
 
-func New(window time.Duration) *Aggregator {
+// Option configures a new Aggregator. Use with New(window, opts...).
+type Option func(*Aggregator)
+
+// WithClock injects a clock function used for every time observation inside
+// the aggregator (open-window start times and the recorded startAt). Required
+// for replay-determinism tests where two runs must observe identical
+// timestamps; production code leaves it unset to use the real wall clock.
+func WithClock(now func() time.Time) Option {
+	return func(a *Aggregator) {
+		if now != nil {
+			a.now = now
+			a.startAt = now()
+		}
+	}
+}
+
+func New(window time.Duration, opts ...Option) *Aggregator {
 	if window <= 0 {
 		window = defaultWindowSize
 	}
-	return &Aggregator{
+	a := &Aggregator{
 		window:     window,
 		historyCap: DefaultHistoryWindows,
 		open:       make(map[string]*windowState),
@@ -80,6 +96,10 @@ func New(window time.Duration) *Aggregator {
 		startAt:    time.Now(),
 		now:        time.Now,
 	}
+	for _, opt := range opts {
+		opt(a)
+	}
+	return a
 }
 
 // Record adds an OrderEvent to the open window for its contestant. Safe to
