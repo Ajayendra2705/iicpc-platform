@@ -37,6 +37,13 @@ func TestPerfReport_5K(t *testing.T) {
 	if testing.Short() {
 		t.Skip("perf report skipped under -short")
 	}
+	// CI saturates at the brief's full 5K×5 RPS = 25K aggregate load (GitHub
+	// Actions runners are 2-core / 7GB). The benchmark is meant for manual
+	// perf-report runs on a dev laptop, not a per-PR gate. Opt in explicitly
+	// via PERF_BENCH=1; see docs/PERFORMANCE_REPORT.md for the canonical run.
+	if os.Getenv("PERF_BENCH") != "1" {
+		t.Skip("set PERF_BENCH=1 to run the 5K-bot perf harness (heavy)")
+	}
 	workers := envInt2(t, "PERF_WORKERS", 5000)
 	dur := envDuration(t, "PERF_DURATION", 30*time.Second)
 	rps := envFloat2(t, "PERF_RPS", 5.0)

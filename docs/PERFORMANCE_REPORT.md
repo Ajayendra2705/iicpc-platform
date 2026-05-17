@@ -48,6 +48,7 @@ load harness:
 ### How to reproduce
 
 ```powershell
+$env:PERF_BENCH    = '1'              # opt-in (heavy; skipped in CI by default)
 $env:PERF_WORKERS  = '5000'           # number of concurrent bots
 $env:PERF_DURATION = '30s'            # test duration
 $env:PERF_RPS      = '2'              # target ops/sec per bot
@@ -57,7 +58,8 @@ go test -run TestPerfReport_5K -v -count=1 -timeout 5m .
 ```
 
 The same harness will run unchanged on Linux / macOS; pass-criteria is
-`< 0.1 %` error rate.
+`< 0.1 %` error rate. The `PERF_BENCH` env-var gate keeps the test out of CI
+runs (GitHub Actions 2-core runners saturate at 25K aggregate RPS).
 
 ---
 
