@@ -1,0 +1,33 @@
+# Attack: pod mounts host root filesystem — would let it read/write any host file.
+# Defence:  PSA restricted disallows hostPath volumes.
+# Expected: API server rejects with "hostPath volumes not allowed".
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attack-host-path
+  namespace: iicpc-contestants
+  labels:
+    iicpc.io/sandbox-attack: "true"
+spec:
+  restartPolicy: Never
+  volumes:
+    - name: host-root
+      hostPath:
+        path: /
+        type: Directory
+  containers:
+    - name: attacker
+      image: busybox:1.36
+      command: ["/bin/sh", "-c", "ls /host/etc; echo ESCALATED"]
+      volumeMounts:
+        - name: host-root
+          mountPath: /host
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault

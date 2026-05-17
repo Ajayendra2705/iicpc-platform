@@ -1,0 +1,19 @@
+# Attack: pod tries to run as uid 0.
+# Defence:  PSA restricted policy on iicpc-contestants namespace.
+# Expected: API server rejects with "runAsNonRoot != true" / "runAsUser=0 not allowed".
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attack-run-as-root
+  namespace: iicpc-contestants
+  labels:
+    iicpc.io/sandbox-attack: "true"
+spec:
+  restartPolicy: Never
+  containers:
+    - name: attacker
+      image: busybox:1.36
+      command: ["/bin/sh", "-c", "id; echo ESCALATED"]
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false

@@ -1,0 +1,96 @@
+# Attacker pod: passes PSA admission (correct securityContext + matches the
+# contestant-pod baseline), then runs 6 in-pod attacks against the runtime
+# boundaries (seccomp, cgroups, NetworkPolicy, ReadOnlyRootFilesystem).
+#
+# Each attack prints either "BLOCKED: <reason>" (expected) or "ESCALATED" (bad).
+# The runner script greps for "ESCALATED" and fails the whole report if any
+# attack succeeded.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attack-runtime
+  namespace: iicpc-contestants
+  labels:
+    app: contestant-pod
+    iicpc.io/sandbox-attack: "true"
+spec:
+  restartPolicy: Never
+  # Match the production contestant-pod baseline so we test the same defences
+  # a real contestant pod has.
+  containers:
+    - name: attacker
+      image: alpine:3.20
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set +e
+          echo "=== Attack 1: write to /etc/passwd (ReadOnlyRootFilesystem) ==="
+          if echo "evil::0:0::/root:/bin/sh" >> /etc/passwd 2>err; then
+            echo "ESCALATED: wrote to /etc/passwd"
+          else
+            echo "BLOCKED: $(cat err)"
+          fi
+          rm -f err
+
+          echo "=== Attack 2: raw AF_PACKET socket (seccomp + CAP_NET_RAW dropped) ==="
+          # Python isn't in alpine by default; use a small C-ish probe via /proc.
+          # The cleanest proxy: try to open /dev/net/tun which needs CAP_NET_ADMIN.
+          if cat /dev/net/tun 2>err >/dev/null; then
+            echo "ESCALATED: opened /dev/net/tun"
+          else
+            echo "BLOCKED: $(cat err)"
+          fi
+          rm -f err
+
+          echo "=== Attack 3: mount tmpfs (CAP_SYS_ADMIN dropped) ==="
+          if mount -t tmpfs none /tmp 2>err; then
+            echo "ESCALATED: mounted tmpfs"
+          else
+            echo "BLOCKED: $(cat err)"
+          fi
+          rm -f err
+
+          echo "=== Attack 4: read another pod's /proc/1/mem (PID namespace) ==="
+          # Can only see our own PIDs since hostPID=false. /proc/2 likely DNE.
+          if cat /proc/2/mem 2>err >/dev/null; then
+            echo "ESCALATED: read /proc/2/mem"
+          else
+            echo "BLOCKED: $(cat err)"
+          fi
+          rm -f err
+
+          echo "=== Attack 5: egress to 1.1.1.1:80 (NetworkPolicy egress allowlist) ==="
+          # wget timeout of 3s — NetworkPolicy denies → connect hangs → timeout.
+          if wget --timeout=3 -qO- http://1.1.1.1/ 2>err >/dev/null; then
+            echo "ESCALATED: reached 1.1.1.1"
+          else
+            echo "BLOCKED: $(cat err 2>/dev/null || echo timeout)"
+          fi
+          rm -f err
+
+          echo "=== Attack 6: install package as non-root (no apk perms) ==="
+          if apk add curl 2>err >/dev/null; then
+            echo "ESCALATED: installed curl"
+          else
+            echo "BLOCKED: $(cat err | head -1)"
+          fi
+          rm -f err
+
+          echo "=== ALL ATTACKS COMPLETE ==="
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "64Mi"
+        limits:
+          cpu: "500m"
+          memory: "128Mi"

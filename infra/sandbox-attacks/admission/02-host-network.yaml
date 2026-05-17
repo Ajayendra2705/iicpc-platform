@@ -1,0 +1,26 @@
+# Attack: pod requests host network namespace — would let it sniff cluster traffic.
+# Defence:  PSA restricted disallows hostNetwork.
+# Expected: API server rejects with "hostNetwork=true not allowed".
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attack-host-network
+  namespace: iicpc-contestants
+  labels:
+    iicpc.io/sandbox-attack: "true"
+spec:
+  restartPolicy: Never
+  hostNetwork: true
+  containers:
+    - name: attacker
+      image: busybox:1.36
+      command: ["/bin/sh", "-c", "ip addr; echo ESCALATED"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault

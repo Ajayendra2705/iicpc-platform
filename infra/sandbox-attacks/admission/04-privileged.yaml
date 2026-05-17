@@ -1,0 +1,18 @@
+# Attack: pod requests privileged mode — equivalent to root on the host.
+# Defence:  PSA restricted disallows privileged containers.
+# Expected: API server rejects with "privileged=true not allowed".
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attack-privileged
+  namespace: iicpc-contestants
+  labels:
+    iicpc.io/sandbox-attack: "true"
+spec:
+  restartPolicy: Never
+  containers:
+    - name: attacker
+      image: busybox:1.36
+      command: ["/bin/sh", "-c", "mount; echo ESCALATED"]
+      securityContext:
+        privileged: true

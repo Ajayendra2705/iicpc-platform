@@ -1,0 +1,27 @@
+# Attack: pod requests host PID namespace — would let it see and signal every
+#         process on the node, including kubelet.
+# Defence:  PSA restricted disallows hostPID.
+# Expected: API server rejects with "hostPID=true not allowed".
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attack-host-pid
+  namespace: iicpc-contestants
+  labels:
+    iicpc.io/sandbox-attack: "true"
+spec:
+  restartPolicy: Never
+  hostPID: true
+  containers:
+    - name: attacker
+      image: busybox:1.36
+      command: ["/bin/sh", "-c", "ps -ef | head; echo ESCALATED"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault

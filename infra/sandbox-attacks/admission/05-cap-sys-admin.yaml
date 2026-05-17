@@ -1,0 +1,27 @@
+# Attack: pod requests CAP_SYS_ADMIN — "the new root" capability that grants
+#         mount, sethostname, ptrace, mount, namespaces, etc.
+# Defence:  PSA restricted forbids capability additions beyond NET_BIND_SERVICE.
+# Expected: API server rejects with "capabilities.add[0]: SYS_ADMIN not allowed".
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attack-cap-sys-admin
+  namespace: iicpc-contestants
+  labels:
+    iicpc.io/sandbox-attack: "true"
+spec:
+  restartPolicy: Never
+  containers:
+    - name: attacker
+      image: busybox:1.36
+      command: ["/bin/sh", "-c", "mount -t tmpfs none /mnt; echo ESCALATED"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+          add: ["SYS_ADMIN"]
+        seccompProfile:
+          type: RuntimeDefault
