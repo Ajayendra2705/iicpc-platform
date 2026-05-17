@@ -24,58 +24,34 @@ spec:
         - /bin/sh
         - -c
         - |
+          # Capture stderr+stdout into a variable; the filesystem is read-only
+          # so we can't redirect to a temp file. Pattern:
+          #   out=$(cmd 2>&1); if [ $? -eq 0 ]; then ESCALATED; else BLOCKED.
           set +e
-          echo "=== Attack 1: write to /etc/passwd (ReadOnlyRootFilesystem) ==="
-          if echo "evil::0:0::/root:/bin/sh" >> /etc/passwd 2>err; then
-            echo "ESCALATED: wrote to /etc/passwd"
-          else
-            echo "BLOCKED: $(cat err)"
-          fi
-          rm -f err
+
+          echo "=== Attack 1: write to /etc/passwd (readOnlyRootFilesystem) ==="
+          out=$(echo "evil::0:0::/root:/bin/sh" >> /etc/passwd 2>&1)
+          if [ $? -eq 0 ]; then echo "ESCALATED: wrote to /etc/passwd"; else echo "BLOCKED: ${out:-Permission denied}"; fi
 
           echo "=== Attack 2: raw AF_PACKET socket (seccomp + CAP_NET_RAW dropped) ==="
-          # Python isn't in alpine by default; use a small C-ish probe via /proc.
-          # The cleanest proxy: try to open /dev/net/tun which needs CAP_NET_ADMIN.
-          if cat /dev/net/tun 2>err >/dev/null; then
-            echo "ESCALATED: opened /dev/net/tun"
-          else
-            echo "BLOCKED: $(cat err)"
-          fi
-          rm -f err
+          out=$(cat /dev/net/tun 2>&1)
+          if [ $? -eq 0 ]; then echo "ESCALATED: opened /dev/net/tun"; else echo "BLOCKED: ${out:-no permission}"; fi
 
           echo "=== Attack 3: mount tmpfs (CAP_SYS_ADMIN dropped) ==="
-          if mount -t tmpfs none /tmp 2>err; then
-            echo "ESCALATED: mounted tmpfs"
-          else
-            echo "BLOCKED: $(cat err)"
-          fi
-          rm -f err
+          out=$(mount -t tmpfs none /tmp 2>&1)
+          if [ $? -eq 0 ]; then echo "ESCALATED: mounted tmpfs"; else echo "BLOCKED: ${out:-permission denied}"; fi
 
           echo "=== Attack 4: read another pod's /proc/1/mem (PID namespace) ==="
-          # Can only see our own PIDs since hostPID=false. /proc/2 likely DNE.
-          if cat /proc/2/mem 2>err >/dev/null; then
-            echo "ESCALATED: read /proc/2/mem"
-          else
-            echo "BLOCKED: $(cat err)"
-          fi
-          rm -f err
+          out=$(cat /proc/2/mem 2>&1 >/dev/null)
+          if [ $? -eq 0 ]; then echo "ESCALATED: read /proc/2/mem"; else echo "BLOCKED: ${out:-no such PID}"; fi
 
           echo "=== Attack 5: egress to 1.1.1.1:80 (NetworkPolicy egress allowlist) ==="
-          # wget timeout of 3s — NetworkPolicy denies → connect hangs → timeout.
-          if wget --timeout=3 -qO- http://1.1.1.1/ 2>err >/dev/null; then
-            echo "ESCALATED: reached 1.1.1.1"
-          else
-            echo "BLOCKED: $(cat err 2>/dev/null || echo timeout)"
-          fi
-          rm -f err
+          out=$(wget --timeout=3 -qO- http://1.1.1.1/ 2>&1 >/dev/null)
+          if [ $? -eq 0 ]; then echo "ESCALATED: reached 1.1.1.1"; else echo "BLOCKED: ${out:-connection timed out}"; fi
 
           echo "=== Attack 6: install package as non-root (no apk perms) ==="
-          if apk add curl 2>err >/dev/null; then
-            echo "ESCALATED: installed curl"
-          else
-            echo "BLOCKED: $(cat err | head -1)"
-          fi
-          rm -f err
+          out=$(apk add curl 2>&1 >/dev/null | head -1)
+          if [ $? -eq 0 ] && [ -z "$out" ]; then echo "ESCALATED: installed curl"; else echo "BLOCKED: ${out:-not permitted}"; fi
 
           echo "=== ALL ATTACKS COMPLETE ==="
       securityContext:

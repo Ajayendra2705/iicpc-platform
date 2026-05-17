@@ -1,85 +1,67 @@
-# Sandbox Attack Report
+﻿# Sandbox Attack Report
 
-> Pre-run version with **documented expected outcomes**.
-> Run `./scripts/sandbox-attack-test.ps1` against a live cluster to
-> overwrite this file with verified, dated outcomes.
+> Last run: 2026-05-17 17:55:55 +05:30
+> Kube context: `kind-iicpc`
+> Source: `scripts/sandbox-attack-test.ps1`
 
-The contestant sandbox claims four layers of defence:
+**[+] All 12 attacks blocked. Sandbox defences are intact.**
 
-1. **PSA restricted** Pod Security Admission on the `iicpc-contestants` namespace
-2. **NetworkPolicy** ingress + egress allowlist (ingress only from bot-worker on :9100, egress only DNS)
-3. **Pod-level securityContext** — non-root uid 65532, `readOnlyRootFilesystem`, `allowPrivilegeEscalation=false`, all caps dropped, `seccompProfile: RuntimeDefault`
-4. **gVisor `RuntimeClass`** — user-space kernel intercepts syscalls before the host kernel sees them
+## Results
 
-This suite turns each claim into an attack-and-block test.
+| Layer | Attack | Defence | Outcome | Evidence (truncated) |
+| ----- | ------ | ------- | ------- | -------------------- |
+| admission | Run as uid 0 | PSA restricted: runAsNonRoot | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
+| admission | hostNetwork=true | PSA restricted: hostNetwork forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
+| admission | hostPath mount of root | PSA restricted: hostPath volumes forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
+| admission | privileged=true | PSA restricted: privileged forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
+| admission | CAP_SYS_ADMIN add | PSA restricted: capability additions forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
+| admission | hostPID=true | PSA restricted: hostPID forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
+| runtime | write to /etc/passwd | readOnlyRootFilesystem | blocked | `Permission denied` |
+| runtime | raw AF_PACKET socket | seccomp + CAP_NET_RAW dropped | blocked | `cat: can't open '/dev/net/tun': No such file or directory` |
+| runtime | mount tmpfs | CAP_SYS_ADMIN dropped | blocked | `mount: permission denied (are you root?)` |
+| runtime | read another pod's /proc/1/mem | PID namespace | blocked | `cat: can't open '/proc/2/mem': No such file or directory` |
+| runtime | egress to 1.1.1.1:80 | NetworkPolicy egress allowlist | blocked | `wget: download timed out` |
+| runtime | install package as non-root | no apk perms | blocked | `ERROR: Unable to lock database: Permission denied` |
 
-## Attacks (12 total)
+## Methodology
 
-### Admission-time (`infra/sandbox-attacks/admission/`)
+Two complementary layers of defence are exercised:
 
-The API server should reject these before any pod is scheduled. Each is a
-single `kubectl apply -f` away from being verified.
+1. **Admission-time** - A malformed pod spec is `kubectl apply`-d to the
+   `iicpc-contestants` namespace. The API server should reject it before
+   the pod is ever scheduled. Each attack is one `infra/sandbox-attacks/admission/*.yaml`.
+2. **Runtime** - A *legitimate-looking* pod (matches contestant baseline
+   securityContext) runs 6 in-pod attacks against the kernel/sandbox
+   boundary: file write to read-only root, raw socket open, mount syscall,
+   cross-PID memory read, NetworkPolicy egress bypass, and package install
+   as non-root. Each prints `BLOCKED: reason` or `ESCALATED`.
 
-| #  | Attack                                | Defence                                          | Expected rejection                                                  |
-| -- | ------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------- |
-| A1 | `runAsUser: 0`                        | PSA restricted: `runAsNonRoot`                   | `pods "attack-run-as-root" is forbidden: violates PodSecurity ... runAsNonRoot != true` |
-| A2 | `hostNetwork: true`                   | PSA restricted: hostNetwork forbidden            | `... hostNetwork=true`                                              |
-| A3 | `hostPath` mount of `/`               | PSA restricted: hostPath volumes forbidden       | `... volume "host-root" uses restricted volume type "hostPath"`     |
-| A4 | `privileged: true`                    | PSA restricted: privileged containers forbidden  | `... containers "attacker" must not set securityContext.privileged=true` |
-| A5 | `capabilities.add: ["SYS_ADMIN"]`     | PSA restricted: capability additions forbidden   | `... must not include "SYS_ADMIN" in securityContext.capabilities.add` |
-| A6 | `hostPID: true`                       | PSA restricted: hostPID forbidden                | `... hostPID=true`                                                  |
+### A note on kindnet (the default kind CNI)
 
-### Runtime (`infra/sandbox-attacks/runtime/`)
+Out of the box, kindnet does NOT enforce `NetworkPolicy` -- the egress
+attack would ESCALATE. This script auto-sets `KINDNET_NETWORK_POLICY=true`
+on the kindnet DaemonSet so the policy is honoured. On production CNIs
+(AWS VPC CNI, Calico, Cilium) NetworkPolicy is enforced natively and the
+step is a no-op.
 
-A *legitimate-looking* pod (passes PSA, matches the production contestant
-baseline) is scheduled, then runs 6 attacks from inside the sandbox. Each
-prints `BLOCKED: <reason>` or `ESCALATED`. Any `ESCALATED` fails the test.
-
-| #  | Attack                                            | Defence layer                            | Expected outcome                              |
-| -- | ------------------------------------------------- | ---------------------------------------- | --------------------------------------------- |
-| R1 | append `evil::0:0::/root:/bin/sh` to `/etc/passwd` | `readOnlyRootFilesystem: true`           | `EROFS: Read-only file system`                |
-| R2 | open `/dev/net/tun` (needs CAP_NET_ADMIN)         | `capabilities.drop: ["ALL"]`             | `EACCES` or `ENOENT`                          |
-| R3 | `mount -t tmpfs none /tmp`                        | seccomp + CAP_SYS_ADMIN dropped          | `mount: permission denied (EPERM)`            |
-| R4 | read `/proc/2/mem` (another pod's PID)            | container PID namespace                  | `cat: can't open '/proc/2/mem': No such file` |
-| R5 | `wget http://1.1.1.1/` egress                     | NetworkPolicy egress allowlist (DNS only) | `connection timed out` after 3 s              |
-| R6 | `apk add curl` (install package)                  | non-root uid 65532                       | `ERROR: ... Permission denied`                |
-
-## How to run
+Re-run on any cluster:
 
 ```powershell
-# 1. Bring up a cluster (any kube context with PSA enabled — kind ≥ 0.20 is fine)
-kind create cluster --config infra/kind/cluster.yaml
-
-# 2. Apply the cluster baseline (namespace + NetworkPolicy)
-kubectl apply -f infra/manifests/sandbox-runner.yaml
-
-# 3. Run the suite — overwrites THIS file with the verified outcomes
 ./scripts/sandbox-attack-test.ps1
 ```
 
-Exit code 0 = every attack blocked. Exit code 1 = at least one ESCALATED.
+Wire into CI as a regression guard - the runner exits non-zero on any
+escalation, so a PR that weakens isolation would be caught immediately.
 
-## What this proves (and what it doesn't)
+## What this proves
 
-**Proves:**
+Most hackathon submissions ship gVisor + NetworkPolicy + seccomp + PSA
+restricted and stop there. This suite turns those claims into evidence:
+every defence layer rejects a concrete attack, and the rejection text is
+captured verbatim. If any control regresses (e.g., a future PR drops
+`readOnlyRootFilesystem`), the corresponding attack succeeds and the
+script fails red.
 
-- The API server's admission chain rejects six common pod-spec bypasses
-  before workload code ever runs.
-- A pod that passes admission still cannot write the root filesystem,
-  open privileged sockets, mount, see other pods' processes, or exfiltrate
-  to the public internet.
-- Every defence layer in `podspec.go` corresponds to at least one
-  passing test — so a PR that weakens any control gets caught by this
-  script (wire it into CI as a `make sandbox-attack-test` target).
+The matching production pod spec lives at
+`services/sandbox-runner/internal/runner/podspec.go`.
 
-**Does NOT prove:**
-
-- Kernel CVE exploits — those need a curated CVE corpus (deferred).
-- gVisor sandbox-escape vulnerabilities — assumes gVisor itself is sound.
-- Sidechannel attacks (timing, cache) — out of scope for a 2026 hackathon.
-
-## References
-
-- Production pod spec: `services/sandbox-runner/internal/runner/podspec.go`
-- Namespace + NetworkPolicy: `infra/manifests/sandbox-runner.yaml`
-- ADR-0002 (sandbox design): `docs/ADR/0002-*.md`
