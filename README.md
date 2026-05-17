@@ -8,10 +8,11 @@
 **Pipeline:** `Code Upload → Containerized Deployment → Distributed Load Testing → Real-Time Scoring`
 
 [Architecture blueprint](docs/ARCHITECTURE.md) ·
+[IaC verification](docs/IAC_VERIFICATION.md) ·
+[Performance report — 5K bots, p99 = 6.4 ms](docs/PERFORMANCE_REPORT.md) ·
+[Sandbox attack report — 12/12 blocked](docs/SANDBOX_ATTACK_REPORT.md) ·
 [EKS staging runbook](docs/EKS_STAGING_RUNBOOK.md) ·
-[Chaos test playbook](docs/CHAOS.md) ·
-[Day-by-day plan](PLAN.md) ·
-[Ideas backlog](IDEAS.md)
+[Chaos test playbook](docs/CHAOS.md)
 
 ---
 

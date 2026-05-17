@@ -38,13 +38,23 @@ function Enable-KindnetNetworkPolicy {
     $hasKindnet = kubectl get ds kindnet -n kube-system --ignore-not-found -o name 2>$null
     if (-not $hasKindnet) { return }
     $env = kubectl get ds kindnet -n kube-system -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="KINDNET_NETWORK_POLICY")].value}' 2>$null
-    if ($env -eq 'true') {
+    $needsRestart = $false
+    if ($env -ne 'true') {
+        Write-Host 'enabling kindnet NetworkPolicy enforcement (set KINDNET_NETWORK_POLICY=true)' -ForegroundColor Cyan
+        kubectl set env ds/kindnet -n kube-system KINDNET_NETWORK_POLICY=true 2>&1 | Out-Null
+        $needsRestart = $true
+    } else {
         Write-Host 'kindnet NetworkPolicy enforcement already enabled' -ForegroundColor Cyan
-        return
     }
-    Write-Host 'enabling kindnet NetworkPolicy enforcement (set KINDNET_NETWORK_POLICY=true)' -ForegroundColor Cyan
-    kubectl set env ds/kindnet -n kube-system KINDNET_NETWORK_POLICY=true 2>&1 | Out-Null
+    # Always wait for rollout + give kindnet a few seconds to program iptables
+    # rules from any existing NetworkPolicy in the cluster. On a brand-new
+    # cluster, the rollout completes instantly but firewall programming lags
+    # by a few seconds — without this delay the egress attack races kindnet.
     kubectl rollout status ds/kindnet -n kube-system --timeout=60s 2>&1 | Out-Null
+    if ($needsRestart) {
+        Write-Host 'waiting 10s for kindnet to program NetworkPolicy iptables rules...' -ForegroundColor Cyan
+        Start-Sleep -Seconds 10
+    }
 }
 
 $script:results = New-Object System.Collections.ArrayList

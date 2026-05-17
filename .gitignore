@@ -68,7 +68,11 @@ redis-data/
 # Reference materials (kept locally, not in repo)
 *.pdf
 IDEATION_IMPLEMENTATION_PIPELINE.md
+ProblemStatement.txt
 
 # Claude session/skill data
 .claude/
+
+# kind-e2e-smoke evidence — regenerated on demand by scripts/kind-e2e-smoke.ps1
+docs/artifacts/
 

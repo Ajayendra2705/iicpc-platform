@@ -1,6 +1,6 @@
 ﻿# Sandbox Attack Report
 
-> Last run: 2026-05-17 17:55:55 +05:30
+> Last run: 2026-05-17 18:46:51 +05:30
 > Kube context: `kind-iicpc`
 > Source: `scripts/sandbox-attack-test.ps1`
 
@@ -10,12 +10,12 @@
 
 | Layer | Attack | Defence | Outcome | Evidence (truncated) |
 | ----- | ------ | ------- | ------- | -------------------- |
-| admission | Run as uid 0 | PSA restricted: runAsNonRoot | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
-| admission | hostNetwork=true | PSA restricted: hostNetwork forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
-| admission | hostPath mount of root | PSA restricted: hostPath volumes forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
-| admission | privileged=true | PSA restricted: privileged forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
-| admission | CAP_SYS_ADMIN add | PSA restricted: capability additions forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
-| admission | hostPID=true | PSA restricted: hostPID forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating "C:\\Users\\ajiit\\Desktop\\Future\\...` |
+| admission | Run as uid 0 | PSA restricted: runAsNonRoot | blocked | `kubectl : Error from server (Forbidden): error when creating` |
+| admission | hostNetwork=true | PSA restricted: hostNetwork forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating` |
+| admission | hostPath mount of root | PSA restricted: hostPath volumes forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating` |
+| admission | privileged=true | PSA restricted: privileged forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating` |
+| admission | CAP_SYS_ADMIN add | PSA restricted: capability additions forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating` |
+| admission | hostPID=true | PSA restricted: hostPID forbidden | blocked | `kubectl : Error from server (Forbidden): error when creating` |
 | runtime | write to /etc/passwd | readOnlyRootFilesystem | blocked | `Permission denied` |
 | runtime | raw AF_PACKET socket | seccomp + CAP_NET_RAW dropped | blocked | `cat: can't open '/dev/net/tun': No such file or directory` |
 | runtime | mount tmpfs | CAP_SYS_ADMIN dropped | blocked | `mount: permission denied (are you root?)` |
