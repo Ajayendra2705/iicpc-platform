@@ -105,4 +105,12 @@ Tracked in [IDEAS.md](IDEAS.md).
 
 ## License
 
-MIT.
+**Proprietary — all rights reserved.**
+
+This repository is the author's IICPC Summer Hackathon 2026 submission. It is
+made publicly visible solely to allow hackathon judges and reviewers to
+inspect the code for evaluation purposes. No license is granted to copy,
+modify, redistribute, sublicense, or use the code or any part of it in
+derivative works without the author's prior written consent.
+
+Copyright © 2026 Ajayendra. All rights reserved.
