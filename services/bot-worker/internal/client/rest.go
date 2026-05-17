@@ -10,8 +10,9 @@ import (
 )
 
 type Config struct {
-	BaseURL string
-	Timeout time.Duration // 0 → 5s
+	BaseURL   string
+	Timeout   time.Duration     // 0 → 5s
+	Transport http.RoundTripper // 0 → http.DefaultTransport (override for tuned pooling / mocks)
 }
 
 type placeReq struct {
@@ -35,7 +36,7 @@ func New(cfg Config) *REST {
 	}
 	return &REST{
 		baseURL: cfg.BaseURL,
-		hc:      &http.Client{Timeout: cfg.Timeout},
+		hc:      &http.Client{Timeout: cfg.Timeout, Transport: cfg.Transport},
 	}
 }
 

@@ -1,0 +1,172 @@
+{
+  "workers": 5000,
+  "duration_ns": 30009443300,
+  "total_requests": 390763,
+  "total_errors": 13,
+  "sub_floor_latencies": 344802,
+  "requests_per_sec": 13021.334521057242,
+  "target_rps": 10000,
+  "percentiles_ns": {
+    "max": 22970367,
+    "p50": 440063,
+    "p90": 1004031,
+    "p95": 2003967,
+    "p99": 6406143,
+    "p999": 19447807,
+    "p9999": 22102015
+  },
+  "cdf": [
+    {
+      "quantile": 0.5,
+      "value_ns": 301055
+    },
+    {
+      "quantile": 1,
+      "value_ns": 301823
+    },
+    {
+      "quantile": 2,
+      "value_ns": 302847
+    },
+    {
+      "quantile": 5,
+      "value_ns": 307455
+    },
+    {
+      "quantile": 10,
+      "value_ns": 315903
+    },
+    {
+      "quantile": 15,
+      "value_ns": 324863
+    },
+    {
+      "quantile": 20,
+      "value_ns": 335359
+    },
+    {
+      "quantile": 25,
+      "value_ns": 346879
+    },
+    {
+      "quantile": 30,
+      "value_ns": 358655
+    },
+    {
+      "quantile": 35,
+      "value_ns": 373759
+    },
+    {
+      "quantile": 40,
+      "value_ns": 390655
+    },
+    {
+      "quantile": 45,
+      "value_ns": 412415
+    },
+    {
+      "quantile": 50,
+      "value_ns": 440063
+    },
+    {
+      "quantile": 55,
+      "value_ns": 480767
+    },
+    {
+      "quantile": 60,
+      "value_ns": 514047
+    },
+    {
+      "quantile": 65,
+      "value_ns": 525311
+    },
+    {
+      "quantile": 70,
+      "value_ns": 538111
+    },
+    {
+      "quantile": 75,
+      "value_ns": 548863
+    },
+    {
+      "quantile": 80,
+      "value_ns": 585727
+    },
+    {
+      "quantile": 85,
+      "value_ns": 780799
+    },
+    {
+      "quantile": 90,
+      "value_ns": 1004031
+    },
+    {
+      "quantile": 92,
+      "value_ns": 1019903
+    },
+    {
+      "quantile": 94,
+      "value_ns": 1583103
+    },
+    {
+      "quantile": 95,
+      "value_ns": 2003967
+    },
+    {
+      "quantile": 96,
+      "value_ns": 2545663
+    },
+    {
+      "quantile": 97,
+      "value_ns": 3528703
+    },
+    {
+      "quantile": 98,
+      "value_ns": 4542463
+    },
+    {
+      "quantile": 98.5,
+      "value_ns": 5525503
+    },
+    {
+      "quantile": 99,
+      "value_ns": 6406143
+    },
+    {
+      "quantile": 99.2,
+      "value_ns": 7102463
+    },
+    {
+      "quantile": 99.4,
+      "value_ns": 8310783
+    },
+    {
+      "quantile": 99.5,
+      "value_ns": 9543679
+    },
+    {
+      "quantile": 99.6,
+      "value_ns": 12083199
+    },
+    {
+      "quantile": 99.7,
+      "value_ns": 15540223
+    },
+    {
+      "quantile": 99.8,
+      "value_ns": 17907711
+    },
+    {
+      "quantile": 99.9,
+      "value_ns": 19447807
+    },
+    {
+      "quantile": 99.95,
+      "value_ns": 20414463
+    },
+    {
+      "quantile": 99.99,
+      "value_ns": 22102015
+    }
+  ]
+}

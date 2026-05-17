@@ -83,7 +83,7 @@ distributed systems". Ideas grouped by which lever they pull:
 
 ---
 
-_Last updated: D32 — differentiator brainstorm (2026-05-17)._
+_Last updated: D32 — differentiator brainstorm + first two shipped (2026-05-17)._
 
 ## Tech debt picked up since last update
 
@@ -97,4 +97,17 @@ _Last updated: D32 — differentiator brainstorm (2026-05-17)._
 
 ## Resolved differentiators
 
-(None yet — all D29+ work.)
+- **A1 — HDR histogram log-merging (shipped D32, 2026-05-17):** aggregator
+  now keeps a 60-window ring of flushed histograms per contestant and exposes
+  `GET /metrics/merged/{contestant_id}?windows=N` that returns
+  bucket-by-bucket merged percentiles instead of averaging per-window p99s.
+  New tests in `services/aggregator/internal/windowing/merge_test.go` prove
+  merged ≠ averaged. SQL-side correctness gap explicitly documented in
+  `infra/timescaledb/migrations/001_telemetry_schema.sql`.
+- **G1 — Honest 5K-bot benchmark + writeup (shipped D32, 2026-05-17):**
+  `services/bot-worker/benchmark_test.go::TestPerfReport_5K` drives 5 000
+  concurrent worker goroutines via the production `runWorker` against an
+  in-process httptest server, captures every latency into HDR, and writes
+  a 50-point CDF + percentiles + TPS to JSON. Measured: **13 021 sustained
+  req/s, 0.003 % error rate, p99 = 6.4 ms**. Full report:
+  `docs/PERFORMANCE_REPORT.md` + raw JSON `docs/perf-report-5k.json`.

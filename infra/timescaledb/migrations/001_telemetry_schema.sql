@@ -39,8 +39,25 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_snapshots_contestant_time
 
 -- ----------------------------------------------------------------------------
 -- 1-minute continuous aggregate. Powers leaderboard time-series queries.
--- NOTE: averaging P99 across 1s windows is statistically lossy — judges should
--- treat avg_p99_ns as approximate; max_p99_ns is exact for the bucket.
+--
+-- IMPORTANT CORRECTNESS NOTE: averaging P99 across 60 one-second windows is
+-- statistically WRONG — you cannot average percentiles. A contestant with
+-- P99=1ms in window A and P99=100ms in window B has merged P99 closer to
+-- 100ms than to 50.5ms.
+--
+-- This view's avg_p99_ns / avg_p50_ns columns therefore systematically
+-- *understate* tail latency and must be treated as approximations.
+-- max_p99_ns is exact per bucket and should be preferred for monitoring.
+--
+-- The correct fix is to store the per-window HDR histogram bytes and merge
+-- bucket-by-bucket. The aggregator service exposes this exactly via:
+--
+--     GET /metrics/merged/{contestant_id}?windows=60
+--
+-- which merges the in-memory ring of recent histograms. To do the same in
+-- SQL would require a TimescaleDB user-defined aggregate over a BYTEA
+-- column holding hdrhistogram-encoded snapshots — deferred to a future
+-- migration since the in-memory merge already covers the leaderboard path.
 -- ----------------------------------------------------------------------------
 CREATE MATERIALIZED VIEW IF NOT EXISTS telemetry_1m
 WITH (timescaledb.continuous) AS

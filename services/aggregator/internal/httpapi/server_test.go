@@ -69,3 +69,28 @@ func TestGetOneMetricNotFound(t *testing.T) {
 		t.Errorf("not found: got %d want 404", w.Code)
 	}
 }
+
+func TestGetMergedMetric(t *testing.T) {
+	_, h := setup()
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/metrics/merged/c1?windows=10", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("merged: got %d", w.Code)
+	}
+	var m windowing.MergedSnapshot
+	if err := json.NewDecoder(w.Body).Decode(&m); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if m.ContestantID != "c1" || m.WindowCount < 1 {
+		t.Errorf("merged shape: %+v", m)
+	}
+}
+
+func TestGetMergedMetricNotFound(t *testing.T) {
+	_, h := setup()
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/metrics/merged/nope", nil))
+	if w.Code != http.StatusNotFound {
+		t.Errorf("got %d want 404", w.Code)
+	}
+}

@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/Ajayendra2705/iicpc-platform/proto/gen/go v0.0.0-20260514201044-7b430a97b9ab
+	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/quickfixgo/quickfix v0.9.10
 	google.golang.org/grpc v1.65.0

@@ -35,14 +35,21 @@ type Snapshot struct {
 	P999Ns       int64         `json:"p999_ns"`
 }
 
+// DefaultHistoryWindows is the size of the per-contestant ring of recently
+// flushed windows. 60 × 1s = a 1-minute mergeable history matching the
+// rolling-window TPS chart in the UI.
+const DefaultHistoryWindows = 60
+
 // Aggregator maintains an open window per contestant and rolls them on Flush.
 type Aggregator struct {
-	mu      sync.Mutex
-	window  time.Duration
-	open    map[string]*windowState
-	latest  map[string]Snapshot
-	startAt time.Time
-	now     func() time.Time
+	mu         sync.Mutex
+	window     time.Duration
+	historyCap int
+	open       map[string]*windowState
+	latest     map[string]Snapshot
+	history    map[string][]*flushed // ring buffer per contestant; tail is newest
+	startAt    time.Time
+	now        func() time.Time
 }
 
 type windowState struct {
@@ -53,16 +60,25 @@ type windowState struct {
 	timeouts int64
 }
 
+// flushed pairs a Snapshot with the histogram so MergedRange can recompute
+// percentiles exactly (averaging percentiles across windows is wrong).
+type flushed struct {
+	snap Snapshot
+	hist *hdrhistogram.Histogram
+}
+
 func New(window time.Duration) *Aggregator {
 	if window <= 0 {
 		window = defaultWindowSize
 	}
 	return &Aggregator{
-		window:  window,
-		open:    make(map[string]*windowState),
-		latest:  make(map[string]Snapshot),
-		startAt: time.Now(),
-		now:     time.Now,
+		window:     window,
+		historyCap: DefaultHistoryWindows,
+		open:       make(map[string]*windowState),
+		latest:     make(map[string]Snapshot),
+		history:    make(map[string][]*flushed),
+		startAt:    time.Now(),
+		now:        time.Now,
 	}
 }
 
@@ -131,10 +147,69 @@ func (a *Aggregator) Flush(now time.Time) []Snapshot {
 		}
 		out = append(out, snap)
 		a.latest[id] = snap
+		// Keep the histogram alongside the snapshot in the ring so MergedRecent
+		// can recompute exact percentiles over a multi-window range.
+		ring := a.history[id]
+		ring = append(ring, &flushed{snap: snap, hist: ws.hist})
+		if len(ring) > a.historyCap {
+			ring = ring[len(ring)-a.historyCap:]
+		}
+		a.history[id] = ring
 	}
 	// reset open windows
 	a.open = make(map[string]*windowState)
 	return out
+}
+
+// MergedRecent returns a percentile cut over the last N flushed windows for
+// the contestant. Histograms are merged bucket-by-bucket so the result is
+// exact — NOT an average of per-window percentiles (which would be wrong).
+// If fewer than N windows are available, merges whatever's there. Returns
+// false if no windows have been flushed yet for this contestant.
+func (a *Aggregator) MergedRecent(contestantID string, windows int) (MergedSnapshot, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	ring, ok := a.history[contestantID]
+	if !ok || len(ring) == 0 {
+		return MergedSnapshot{}, false
+	}
+	if windows <= 0 || windows > len(ring) {
+		windows = len(ring)
+	}
+	slice := ring[len(ring)-windows:]
+
+	hists := make([]*hdrhistogram.Histogram, 0, len(slice))
+	var totalCount, totalRejected, totalTimeouts int64
+	var totalDur time.Duration
+	for _, f := range slice {
+		hists = append(hists, f.hist)
+		totalCount += f.snap.Count
+		totalRejected += f.snap.Rejected
+		totalTimeouts += f.snap.Timeouts
+		totalDur += f.snap.Duration
+	}
+	merged := MergeHistograms(hists)
+	if merged == nil {
+		return MergedSnapshot{}, false
+	}
+	avgTPS := 0.0
+	if s := totalDur.Seconds(); s > 0 {
+		avgTPS = float64(totalCount) / s
+	}
+	return MergedSnapshot{
+		ContestantID:  contestantID,
+		WindowCount:   len(slice),
+		Duration:      totalDur,
+		TotalCount:    totalCount,
+		TotalRejected: totalRejected,
+		TotalTimeouts: totalTimeouts,
+		AverageTPS:    avgTPS,
+		P50Ns:         merged.ValueAtQuantile(50),
+		P90Ns:         merged.ValueAtQuantile(90),
+		P99Ns:         merged.ValueAtQuantile(99),
+		P999Ns:        merged.ValueAtQuantile(99.9),
+	}, true
 }
 
 // Latest returns the most recently flushed snapshot for the contestant.
