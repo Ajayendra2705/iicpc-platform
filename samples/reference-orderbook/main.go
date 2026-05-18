@@ -24,6 +24,7 @@ var (
 type placeReq struct {
 	ID    string  `json:"id"`
 	Side  string  `json:"side"`
+	Kind  string  `json:"kind"` // "limit" (default) or "market"
 	Price float64 `json:"price"`
 	Qty   int64   `json:"qty"`
 }
@@ -82,8 +83,22 @@ func handlePlace(w http.ResponseWriter, r *http.Request) {
 	if id == "" {
 		id = fmt.Sprintf("ord-%d", orderID.Add(1))
 	}
+	kind := req.Kind
+	if kind == "" {
+		kind = "limit"
+	}
 	o := &engine.Order{ID: id, Side: side, Price: req.Price, Qty: req.Qty, At: time.Now()}
-	fills, err := ob.Place(o)
+	var fills []engine.Fill
+	var err error
+	switch kind {
+	case "limit":
+		fills, err = ob.Place(o)
+	case "market":
+		fills, err = ob.PlaceMarket(o)
+	default:
+		http.Error(w, "kind must be limit or market", http.StatusBadRequest)
+		return
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return

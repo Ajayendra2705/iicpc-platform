@@ -53,6 +53,42 @@ func (b *Book) Place(o Order) int64 {
 	return 0
 }
 
+// PlaceMarket matches an incoming market order against the opposite book at
+// any price (IOC). The unfilled remainder is discarded — market orders do not
+// rest. Returns the quantity filled. Used by the validator to score
+// contestant fills against canonical market-order semantics.
+func (b *Book) PlaceMarket(side Side, qty int64) int64 {
+	switch side {
+	case Buy:
+		var filled int64
+		for len(b.asks) > 0 && qty > 0 {
+			ask := &b.asks[0]
+			take := min64(qty, ask.Qty)
+			filled += take
+			qty -= take
+			ask.Qty -= take
+			if ask.Qty == 0 {
+				b.asks = b.asks[1:]
+			}
+		}
+		return filled
+	case Sell:
+		var filled int64
+		for len(b.bids) > 0 && qty > 0 {
+			bid := &b.bids[0]
+			take := min64(qty, bid.Qty)
+			filled += take
+			qty -= take
+			bid.Qty -= take
+			if bid.Qty == 0 {
+				b.bids = b.bids[1:]
+			}
+		}
+		return filled
+	}
+	return 0
+}
+
 // Cancel removes the order with the given id from the book. Returns true
 // if found and removed.
 func (b *Book) Cancel(id string) bool {

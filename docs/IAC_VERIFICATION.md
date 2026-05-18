@@ -163,6 +163,48 @@ across pods sustaining 13K req/s.)
 
 ---
 
+## CPU pinning (contestant pods)
+
+The brief calls for **CPU pinning, strict memory limits** for contestant
+isolation. This repo implements that in two coordinated places:
+
+1. **Pod-level (in this repo).** The sandbox-runner builds contestant pods
+   with `requests == limits` for both CPU and memory, using integer CPU
+   values. This puts the pod into the Kubernetes **Guaranteed QoS class**,
+   which is the prerequisite for the kubelet CPU Manager to pin whole
+   cores.
+
+   | Resource | Request | Limit | Source |
+   | -------- | ------- | ----- | ------ |
+   | CPU      | `1`     | `1`   | `infra/manifests/sandbox-runner.yaml` env `CPU_REQUEST` / `CPU_LIMIT`; pod-template `services/sandbox-runner/internal/runner/podspec.go` |
+   | Memory   | `512Mi` | `512Mi` | same |
+
+   Verified by `TestPodSpecGuaranteedQoS` in
+   `services/sandbox-runner/internal/runner/runner_test.go` — the test
+   asserts `requests.cpu == limits.cpu`, `requests.memory == limits.memory`,
+   and that CPU is an integer number of cores (not millicores).
+
+2. **Node-level (kubelet flag).** Pinning is only enforced when the
+   kubelet runs with `--cpu-manager-policy=static`. This is set
+   per-node-group via the EKS managed-node-group `kubeletExtraConfig`:
+
+   ```hcl
+   # infra/terraform/eks.tf (excerpt)
+   eks_managed_node_groups = {
+     contestants = {
+       kubelet_extra_args = "--cpu-manager-policy=static --reserved-cpus=0"
+     }
+   }
+   ```
+
+   On kind / local development, the static policy is not active (kind
+   nodes run a single shared kubelet); QoS=Guaranteed alone still
+   guarantees `requests` is honoured but cores are not exclusively
+   reserved. Production EKS gets the full pinning.
+
+Together: Guaranteed QoS pod (this repo) + static CPU Manager (node
+config) ⇒ contestant pod is pinned to N exclusive cores for its lifetime.
+
 ## How CI enforces this on every PR
 
 `.github/workflows/ci.yml` runs the same gates non-locally on every push +

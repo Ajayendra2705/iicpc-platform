@@ -13,9 +13,21 @@ const (
 	Sell Side = "sell"
 )
 
+// Kind distinguishes limit vs market orders. PS deliverable §"Distributed
+// Load Generator" lists both as required order types. Market orders have no
+// price and use IOC semantics on the contestant side (match aggressively,
+// don't rest unfilled remainder).
+type Kind string
+
+const (
+	Limit  Kind = "limit"
+	Market Kind = "market"
+)
+
 type Order struct {
 	Side  Side    `json:"side"`
-	Price float64 `json:"price"`
+	Kind  Kind    `json:"kind"`
+	Price float64 `json:"price"` // ignored when Kind == Market
 	Qty   int     `json:"qty"`
 }
 
@@ -25,6 +37,7 @@ type Config struct {
 	MinQty      int     // <=0 → 1
 	MaxQty      int     // <=0 → 10
 	CancelRatio float64 // fraction [0,1]; <=0 → 0.70
+	MarketRatio float64 // fraction [0,1] of orders emitted as Market; <0 → 0.10
 }
 
 func (c *Config) applyDefaults() {
@@ -42,6 +55,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.CancelRatio <= 0 {
 		c.CancelRatio = 0.70
+	}
+	if c.MarketRatio < 0 {
+		c.MarketRatio = 0.10
 	}
 }
 
@@ -63,16 +79,19 @@ func (g *Generator) Next() Order {
 	if g.rng.Intn(2) == 1 {
 		side = Sell
 	}
+	qty := g.cfg.MinQty
+	if g.cfg.MaxQty > g.cfg.MinQty {
+		qty += g.rng.Intn(g.cfg.MaxQty - g.cfg.MinQty + 1)
+	}
+	if g.cfg.MarketRatio > 0 && g.rng.Float64() < g.cfg.MarketRatio {
+		return Order{Side: side, Kind: Market, Qty: qty}
+	}
 	raw := g.cfg.MidPrice + g.rng.NormFloat64()*g.cfg.PriceSigma
 	if raw < 0.01 {
 		raw = 0.01
 	}
 	price := math.Round(raw*100) / 100
-	qty := g.cfg.MinQty
-	if g.cfg.MaxQty > g.cfg.MinQty {
-		qty += g.rng.Intn(g.cfg.MaxQty - g.cfg.MinQty + 1)
-	}
-	return Order{Side: side, Price: price, Qty: qty}
+	return Order{Side: side, Kind: Limit, Price: price, Qty: qty}
 }
 
 func (g *Generator) ShouldCancel() bool {

@@ -170,9 +170,21 @@ func (c *FIXClient) Connect(ctx context.Context) error {
 	}
 }
 
-// PlaceOrder sends a FIX 4.4 NewOrderSingle and waits for an ExecutionReport.
-// Returns the exchange OrderID, RTT in nanoseconds, and any error.
+// PlaceOrder sends a FIX 4.4 NewOrderSingle (OrdType=2, Limit) and waits for
+// an ExecutionReport. Returns the exchange OrderID, RTT in nanoseconds, and
+// any error.
 func (c *FIXClient) PlaceOrder(ctx context.Context, side string, price float64, qty int) (string, int64, error) {
+	return c.sendNewOrder(ctx, side, &price, qty)
+}
+
+// PlaceMarketOrder sends a FIX 4.4 NewOrderSingle with OrdType=1 (Market) and
+// no Price tag. Market orders are IOC by convention: contestant must fill what
+// it can at any price and reject remainder (no resting).
+func (c *FIXClient) PlaceMarketOrder(ctx context.Context, side string, qty int) (string, int64, error) {
+	return c.sendNewOrder(ctx, side, nil, qty)
+}
+
+func (c *FIXClient) sendNewOrder(ctx context.Context, side string, price *float64, qty int) (string, int64, error) {
 	clOrdID := fmt.Sprintf("bot-%d", c.seq.Add(1))
 
 	fixSide := "1" // buy
@@ -180,13 +192,20 @@ func (c *FIXClient) PlaceOrder(ctx context.Context, side string, price float64, 
 		fixSide = "2"
 	}
 
+	ordType := "2" // Limit
+	if price == nil {
+		ordType = "1" // Market
+	}
+
 	msg := quickfix.NewMessage()
 	msg.Header.SetField(tagMsgType, quickfix.FIXString("D"))
 	msg.Body.SetField(tagClOrdID, quickfix.FIXString(clOrdID))
 	msg.Body.SetField(tagSymbol, quickfix.FIXString(c.symbol))
 	msg.Body.SetField(tagSide, quickfix.FIXString(fixSide))
-	msg.Body.SetField(tagOrdType, quickfix.FIXString("2")) // limit
-	msg.Body.SetField(tagPrice, quickfix.FIXString(fmt.Sprintf("%.2f", price)))
+	msg.Body.SetField(tagOrdType, quickfix.FIXString(ordType))
+	if price != nil {
+		msg.Body.SetField(tagPrice, quickfix.FIXString(fmt.Sprintf("%.2f", *price)))
+	}
 	msg.Body.SetField(tagOrderQty, quickfix.FIXString(fmt.Sprintf("%d", qty)))
 	msg.Body.SetField(tagTransactTime, quickfix.FIXString(time.Now().UTC().Format("20060102-15:04:05.000")))
 

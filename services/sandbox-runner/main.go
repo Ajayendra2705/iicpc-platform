@@ -23,9 +23,14 @@ func main() {
 	cfg := runner.Config{
 		Namespace:        getEnv("K8S_NAMESPACE", "iicpc-contestants"),
 		RuntimeClass:     getEnv("RUNTIME_CLASS", "gvisor"),
-		CPURequest:       getEnv("CPU_REQUEST", "500m"),
-		CPULimit:         getEnv("CPU_LIMIT", "1000m"),
-		MemoryRequest:    getEnv("MEMORY_REQUEST", "256Mi"),
+		// CPU/memory requests == limits → Guaranteed QoS class, which is the
+		// prerequisite for kubelet CPU Manager static policy (CPU pinning).
+		// Integer CPU values are required for the static policy to pin whole
+		// cores. See PS deliverable "CPU pinning, strict memory limits" and
+		// docs/IAC_VERIFICATION.md §"CPU pinning".
+		CPURequest:       getEnv("CPU_REQUEST", "1"),
+		CPULimit:         getEnv("CPU_LIMIT", "1"),
+		MemoryRequest:    getEnv("MEMORY_REQUEST", "512Mi"),
 		MemoryLimit:      getEnv("MEMORY_LIMIT", "512Mi"),
 		EphemeralLimit:   getEnv("EPHEMERAL_LIMIT", "2Gi"),
 		ReadinessTimeout: mustDuration(getEnv("READINESS_TIMEOUT", "60s")),

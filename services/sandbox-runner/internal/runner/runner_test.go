@@ -14,9 +14,9 @@ func testConfig() Config {
 	return Config{
 		Namespace:        "iicpc-contestants",
 		RuntimeClass:     "gvisor",
-		CPURequest:       "500m",
-		CPULimit:         "1000m",
-		MemoryRequest:    "256Mi",
+		CPURequest:       "1",
+		CPULimit:         "1",
+		MemoryRequest:    "512Mi",
 		MemoryLimit:      "512Mi",
 		EphemeralLimit:   "2Gi",
 		ReadinessTimeout: 5 * time.Second,
@@ -75,6 +75,31 @@ func TestPodSpecResourceLimits(t *testing.T) {
 	}
 	if limits.Memory().IsZero() {
 		t.Fatal("expected non-zero memory limit")
+	}
+}
+
+// TestPodSpecGuaranteedQoS asserts that contestant pods are scheduled with
+// QoS class Guaranteed (requests==limits for both CPU and memory). This is
+// the prerequisite for kubelet CPU Manager static policy ("CPU pinning"
+// from PS deliverable). If this test fails the pod will land in Burstable
+// QoS and the CPU Manager will not pin cores.
+func TestPodSpecGuaranteedQoS(t *testing.T) {
+	r := &Runner{client: fake.NewSimpleClientset(), cfg: testConfig()}
+	pod := r.podSpec("abc-123", "c1", "localhost:5000/img:latest", 9100)
+	res := pod.Spec.Containers[0].Resources
+
+	if !res.Requests.Cpu().Equal(*res.Limits.Cpu()) {
+		t.Fatalf("CPU request %s != limit %s — Guaranteed QoS requires equality",
+			res.Requests.Cpu(), res.Limits.Cpu())
+	}
+	if !res.Requests.Memory().Equal(*res.Limits.Memory()) {
+		t.Fatalf("memory request %s != limit %s — Guaranteed QoS requires equality",
+			res.Requests.Memory(), res.Limits.Memory())
+	}
+	// Integer CPU is required for kubelet --cpu-manager-policy=static to pin whole cores.
+	cpu := res.Limits.Cpu()
+	if cpu.MilliValue()%1000 != 0 {
+		t.Fatalf("CPU limit %s is fractional — CPU Manager static policy needs integer cores", cpu)
 	}
 }
 

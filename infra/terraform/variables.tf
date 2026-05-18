@@ -51,7 +51,7 @@ variable "db_password" {
 }
 
 variable "node_groups" {
-  description = "EKS managed node group definitions, keyed by pool name."
+  description = "EKS managed node group definitions, keyed by pool name. Set kubelet_extra_args on the contestants pool to enable CPU Manager static policy (CPU pinning)."
   type = map(object({
     instance_types = list(string)
     min_size       = number
@@ -63,6 +63,10 @@ variable "node_groups" {
       value  = string
       effect = string
     })), [])
+    # Extra kubelet flags wired into the bootstrap user-data. The contestants
+    # pool uses this to enable the CPU Manager static policy so that Guaranteed
+    # QoS pods get whole-core pinning (PS: "CPU pinning").
+    kubelet_extra_args = optional(string, "")
   }))
 
   default = {
@@ -84,6 +88,9 @@ variable "node_groups" {
         value  = "contestants"
         effect = "NO_SCHEDULE"
       }]
+      # CPU Manager static policy pins whole cores for Guaranteed QoS pods.
+      # --reserved-cpus=0 keeps CPU 0 for system/DaemonSet workloads.
+      kubelet_extra_args = "--cpu-manager-policy=static --reserved-cpus=0"
     }
     bots = {
       instance_types = ["c6g.xlarge"]

@@ -17,7 +17,8 @@ type Config struct {
 
 type placeReq struct {
 	Side  string  `json:"side"`
-	Price float64 `json:"price"`
+	Kind  string  `json:"kind,omitempty"` // "limit" (default) or "market"
+	Price float64 `json:"price,omitempty"`
 	Qty   int     `json:"qty"`
 }
 
@@ -40,10 +41,20 @@ func New(cfg Config) *REST {
 	}
 }
 
-// PlaceOrder sends a new order to the target orderbook.
+// PlaceOrder sends a new limit order to the target orderbook.
 // Returns the assigned order ID, round-trip latency in nanoseconds, and any error.
 func (c *REST) PlaceOrder(ctx context.Context, side string, price float64, qty int) (id string, latNs int64, err error) {
-	body, err := json.Marshal(placeReq{Side: side, Price: price, Qty: qty})
+	return c.place(ctx, placeReq{Side: side, Kind: "limit", Price: price, Qty: qty})
+}
+
+// PlaceMarketOrder sends a market order (no price, IOC). Returns the assigned
+// order ID, round-trip latency in nanoseconds, and any error.
+func (c *REST) PlaceMarketOrder(ctx context.Context, side string, qty int) (id string, latNs int64, err error) {
+	return c.place(ctx, placeReq{Side: side, Kind: "market", Qty: qty})
+}
+
+func (c *REST) place(ctx context.Context, pr placeReq) (id string, latNs int64, err error) {
+	body, err := json.Marshal(pr)
 	if err != nil {
 		return "", 0, fmt.Errorf("marshal: %w", err)
 	}
@@ -64,11 +75,11 @@ func (c *REST) PlaceOrder(ctx context.Context, side string, price float64, qty i
 	if resp.StatusCode != http.StatusOK {
 		return "", latNs, fmt.Errorf("place order: status %d", resp.StatusCode)
 	}
-	var pr placeResp
-	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+	var resBody placeResp
+	if err := json.NewDecoder(resp.Body).Decode(&resBody); err != nil {
 		return "", latNs, fmt.Errorf("decode response: %w", err)
 	}
-	return pr.ID, latNs, nil
+	return resBody.ID, latNs, nil
 }
 
 func (c *REST) Close() error { return nil }

@@ -13,6 +13,7 @@ import (
 type wsReq struct {
 	Action string  `json:"action"`
 	Side   string  `json:"side,omitempty"`
+	Kind   string  `json:"kind,omitempty"` // "limit" (default) or "market"
 	Price  float64 `json:"price,omitempty"`
 	Qty    int     `json:"qty,omitempty"`
 	ID     string  `json:"id,omitempty"`
@@ -45,7 +46,11 @@ func DialWS(ctx context.Context, rawURL string) (*WSClient, error) {
 }
 
 func (c *WSClient) PlaceOrder(ctx context.Context, side string, price float64, qty int) (string, int64, error) {
-	return c.roundTrip(ctx, wsReq{Action: "place", Side: side, Price: price, Qty: qty})
+	return c.roundTrip(ctx, wsReq{Action: "place", Side: side, Kind: "limit", Price: price, Qty: qty})
+}
+
+func (c *WSClient) PlaceMarketOrder(ctx context.Context, side string, qty int) (string, int64, error) {
+	return c.roundTrip(ctx, wsReq{Action: "place", Side: side, Kind: "market", Qty: qty})
 }
 
 func (c *WSClient) CancelOrder(ctx context.Context, id string) (int64, error) {

@@ -31,6 +31,7 @@ type config struct {
 	midPrice        float64
 	priceSigma      float64
 	cancelRatio     float64
+	marketRatio     float64 // fraction of orders sent as Market (IOC, no price); default 0.10
 	workerID        string
 	protocol        string // rest | ws | fix
 	wsPath          string // WebSocket path appended to targetURL
@@ -56,6 +57,7 @@ func loadConfig() config {
 		midPrice:        envFloat("MID_PRICE", 100),
 		priceSigma:      envFloat("PRICE_SIGMA", 1.0),
 		cancelRatio:     envFloat("CANCEL_RATIO", 0.70),
+		marketRatio:     envFloat("MARKET_RATIO", 0.10),
 		workerID:        envOr("WORKER_ID", "bot-0"),
 		protocol:        envOr("PROTOCOL", "rest"),
 		wsPath:          envOr("WS_PATH", "/ws"),
@@ -84,6 +86,7 @@ func main() {
 		MidPrice:    cfg.midPrice,
 		PriceSigma:  cfg.priceSigma,
 		CancelRatio: cfg.cancelRatio,
+		MarketRatio: cfg.marketRatio,
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -277,14 +280,27 @@ func runWorker(
 			// place a new order on every arrival
 			ord := g.Next()
 			start := time.Now()
-			oid, latNs, err := cli.PlaceOrder(ctx, string(ord.Side), ord.Price, ord.Qty)
+			var oid string
+			var latNs int64
+			var err error
+			teleType := telemetryv1.OrderType_ORDER_TYPE_LIMIT
+			if ord.Kind == gen.Market {
+				teleType = telemetryv1.OrderType_ORDER_TYPE_MARKET
+				oid, latNs, err = cli.PlaceMarketOrder(ctx, string(ord.Side), ord.Qty)
+			} else {
+				oid, latNs, err = cli.PlaceOrder(ctx, string(ord.Side), ord.Price, ord.Qty)
+			}
 			switch {
 			case err == nil:
 				rec.RecordLatency(latNs)
-				liveIDs = append(liveIDs, oid)
+				// Market orders are IOC: they don't rest on the book, so don't
+				// track for later cancellation. Only limit orders go to liveIDs.
+				if ord.Kind != gen.Market {
+					liveIDs = append(liveIDs, oid)
+				}
 				tele.Emit(&telemetryv1.OrderEvent{
 					ContestantId: contestantID, BotId: botID, OrderId: oid,
-					Type:     telemetryv1.OrderType_ORDER_TYPE_LIMIT,
+					Type:     teleType,
 					Result:   telemetryv1.OrderResult_ORDER_RESULT_ACK_ONLY,
 					SentTsNs: start.UnixNano(), AckTsNs: start.Add(time.Duration(latNs)).UnixNano(),
 					LatencyNs: latNs, Price: ord.Price, Quantity: int64(ord.Qty),
@@ -293,10 +309,10 @@ func runWorker(
 				return
 			default:
 				rec.RecordError()
-				log.Warn("place failed", "err", err)
+				log.Warn("place failed", "kind", ord.Kind, "err", err)
 				tele.Emit(&telemetryv1.OrderEvent{
 					ContestantId: contestantID, BotId: botID,
-					Type:     telemetryv1.OrderType_ORDER_TYPE_LIMIT,
+					Type:     teleType,
 					Result:   telemetryv1.OrderResult_ORDER_RESULT_REJECTED,
 					SentTsNs: start.UnixNano(),
 					Price:    ord.Price, Quantity: int64(ord.Qty),

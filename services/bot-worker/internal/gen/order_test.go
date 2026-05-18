@@ -7,9 +7,13 @@ import (
 )
 
 func TestNextValid(t *testing.T) {
+	// MarketRatio: 0 → all limit orders (so o.Price must be >0)
 	g := gen.New(gen.Config{MidPrice: 100, PriceSigma: 1, MinQty: 1, MaxQty: 10, CancelRatio: 0.7})
 	for range 1000 {
 		o := g.Next()
+		if o.Kind != gen.Limit {
+			t.Fatalf("expected Limit (MarketRatio=0), got %s", o.Kind)
+		}
 		if o.Price <= 0 {
 			t.Fatalf("non-positive price: %f", o.Price)
 		}
@@ -19,6 +23,25 @@ func TestNextValid(t *testing.T) {
 		if o.Side != gen.Buy && o.Side != gen.Sell {
 			t.Fatalf("invalid side: %s", o.Side)
 		}
+	}
+}
+
+func TestMarketRatioDistribution(t *testing.T) {
+	g := gen.New(gen.Config{MidPrice: 100, PriceSigma: 1, MarketRatio: 0.20})
+	const n = 10_000
+	markets := 0
+	for range n {
+		o := g.Next()
+		if o.Kind == gen.Market {
+			markets++
+			if o.Price != 0 {
+				t.Fatalf("market order with non-zero price: %f", o.Price)
+			}
+		}
+	}
+	ratio := float64(markets) / n
+	if ratio < 0.17 || ratio > 0.23 {
+		t.Fatalf("market ratio %.3f outside [0.17, 0.23]", ratio)
 	}
 }
 

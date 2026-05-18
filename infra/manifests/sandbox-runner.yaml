@@ -105,12 +105,15 @@ spec:
               value: "iicpc-contestants"
             - name: RUNTIME_CLASS
               value: "gvisor"
+            # Guaranteed QoS for contestant pods: requests==limits, integer
+            # CPU. Required for kubelet CPU Manager static policy (CPU pinning,
+            # PS deliverable). See docs/IAC_VERIFICATION.md §"CPU pinning".
             - name: CPU_REQUEST
-              value: "500m"
+              value: "1"
             - name: CPU_LIMIT
-              value: "1000m"
+              value: "1"
             - name: MEMORY_REQUEST
-              value: "256Mi"
+              value: "512Mi"
             - name: MEMORY_LIMIT
               value: "512Mi"
             - name: EPHEMERAL_LIMIT

@@ -167,6 +167,65 @@ func (ob *OrderBook) Place(o *Order) ([]Fill, error) {
 	return fills, nil
 }
 
+// PlaceMarket attempts to fill the order against the opposite book at any
+// price (IOC semantics). Unfilled remainder is discarded — market orders do
+// not rest on the book. Returns the fills produced.
+func (ob *OrderBook) PlaceMarket(o *Order) ([]Fill, error) {
+	ob.mu.Lock()
+	defer ob.mu.Unlock()
+
+	if _, exists := ob.orders[o.ID]; exists {
+		return nil, fmt.Errorf("duplicate order id %s", o.ID)
+	}
+	if o.Remaining == 0 {
+		o.Remaining = o.Qty
+	}
+	// Track only briefly to honour idempotency on retries; remove at the end.
+	ob.orders[o.ID] = o
+
+	var fills []Fill
+	if o.Side == Buy {
+		for o.Remaining > 0 && ob.asks.Len() > 0 {
+			for ob.asks.Len() > 0 && ob.asks[0].o.Remaining == 0 {
+				heap.Pop(&ob.asks)
+			}
+			if ob.asks.Len() == 0 {
+				break
+			}
+			best := ob.asks[0].o
+			qty := min64(o.Remaining, best.Remaining)
+			fills = append(fills, Fill{BuyOrderID: o.ID, SellOrderID: best.ID, Price: best.Price, Qty: qty})
+			o.Remaining -= qty
+			best.Remaining -= qty
+			if best.Remaining == 0 {
+				heap.Pop(&ob.asks)
+				delete(ob.askIndex, best.ID)
+			}
+		}
+	} else {
+		for o.Remaining > 0 && ob.bids.Len() > 0 {
+			for ob.bids.Len() > 0 && ob.bids[0].o.Remaining == 0 {
+				heap.Pop(&ob.bids)
+			}
+			if ob.bids.Len() == 0 {
+				break
+			}
+			best := ob.bids[0].o
+			qty := min64(o.Remaining, best.Remaining)
+			fills = append(fills, Fill{BuyOrderID: best.ID, SellOrderID: o.ID, Price: best.Price, Qty: qty})
+			o.Remaining -= qty
+			best.Remaining -= qty
+			if best.Remaining == 0 {
+				heap.Pop(&ob.bids)
+				delete(ob.bidIndex, best.ID)
+			}
+		}
+	}
+	// Market orders do not rest — drop the unfilled remainder.
+	delete(ob.orders, o.ID)
+	return fills, nil
+}
+
 func (ob *OrderBook) Cancel(id string) error {
 	ob.mu.Lock()
 	defer ob.mu.Unlock()

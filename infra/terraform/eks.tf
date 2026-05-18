@@ -29,6 +29,23 @@ module "eks" {
         for i, t in cfg.taints : "${t.key}-${i}" => t
       }
       ami_type = "AL2023_ARM_64_STANDARD" # graviton, cheaper + lower carbon
+
+      # Pass through extra kubelet flags via bootstrap.sh user-data. The
+      # contestants pool sets --cpu-manager-policy=static so Guaranteed QoS
+      # contestant pods get whole-core pinning (PS: "CPU pinning").
+      pre_bootstrap_user_data = cfg.kubelet_extra_args == "" ? "" : <<-EOT
+        #!/bin/bash
+        echo 'KUBELET_EXTRA_ARGS="${cfg.kubelet_extra_args}"' >> /etc/kubernetes/kubelet/kubelet-config.json.d/00-extra-args.env || true
+        # AL2023 path: append to the dynamic kubelet config via nodeadm.
+        cat <<NODECFG > /etc/eks/nodeadm/extra-kubelet.yaml
+        apiVersion: node.eks.aws/v1alpha1
+        kind: NodeConfig
+        spec:
+          kubelet:
+            flags:
+            - "${cfg.kubelet_extra_args}"
+        NODECFG
+      EOT
     }
   }
 }

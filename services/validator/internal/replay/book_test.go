@@ -105,6 +105,54 @@ func TestCancelUnknownReturnsFalse(t *testing.T) {
 	}
 }
 
+func TestMarketBuyMatchesAnyAskPrice(t *testing.T) {
+	b := replay.New()
+	b.Place(ord("s1", replay.Sell, 95, 4, 1))  // best
+	b.Place(ord("s2", replay.Sell, 110, 6, 2)) // far above any limit price
+	// Market buy ignores price — should fill across both levels in price-time order.
+	filled := b.PlaceMarket(replay.Buy, 8)
+	if filled != 8 {
+		t.Errorf("market buy filled: got %d want 8", filled)
+	}
+	if p, ok := b.BestAsk(); !ok || p != 110 {
+		t.Errorf("s2 should still rest at 110: got %v ok=%v", p, ok)
+	}
+}
+
+func TestMarketBuyDoesNotRestUnfilled(t *testing.T) {
+	b := replay.New()
+	b.Place(ord("s1", replay.Sell, 100, 3, 1))
+	// Market buy for 10 — only 3 available. Remaining 7 must NOT rest on bid side.
+	filled := b.PlaceMarket(replay.Buy, 10)
+	if filled != 3 {
+		t.Errorf("filled: got %d want 3", filled)
+	}
+	if _, ok := b.BestBid(); ok {
+		t.Error("market buy unfilled remainder must not rest as bid")
+	}
+}
+
+func TestMarketSellSweepsBids(t *testing.T) {
+	b := replay.New()
+	b.Place(ord("b1", replay.Buy, 100, 3, 1))
+	b.Place(ord("b2", replay.Buy, 99, 5, 2))
+	filled := b.PlaceMarket(replay.Sell, 6)
+	if filled != 6 {
+		t.Errorf("filled: got %d want 6", filled)
+	}
+	// b2 partially filled — should still rest with qty 2.
+	if p, ok := b.BestBid(); !ok || p != 99 {
+		t.Errorf("b2 remainder should rest at 99: got %v ok=%v", p, ok)
+	}
+}
+
+func TestMarketOnEmptyBookReturnsZero(t *testing.T) {
+	b := replay.New()
+	if got := b.PlaceMarket(replay.Buy, 5); got != 0 {
+		t.Errorf("market buy on empty book: got %d want 0", got)
+	}
+}
+
 func TestSellWalksMultipleBidLevels(t *testing.T) {
 	b := replay.New()
 	b.Place(ord("b1", replay.Buy, 100, 3, 1))
