@@ -5,11 +5,11 @@
 
 ## Context
 
-Solo developer, 32-day window, 9 microservices needed.
+Solo developer, 32-day window, 9 Go microservices needed (+ Next.js web).
 
 ## Decision
 
-Use a single Go workspace (`go.work`) with one module per service under `services/`. All services share the `github.com/iicpc/platform` namespace. Proto contracts live under `proto/` and generate into the same import path so every service imports types from the same place.
+Use a single Go workspace (`go.work`) with one module per service under `services/`. All services share the `github.com/Ajayendra2705/iicpc-platform` namespace. Proto contracts live under `proto/` and generate into the same import path so every service imports types from the same place.
 
 ## Alternatives considered
 

@@ -6,7 +6,7 @@ Fresh-machine instructions for the IICPC platform.
 
 | Tool | Version | Install |
 |---|---|---|
-| Go | 1.22+ | https://go.dev/dl/ or `winget install GoLang.Go` |
+| Go | 1.25+ (toolchain pinned to 1.26 in Dockerfiles) | https://go.dev/dl/ or `winget install GoLang.Go` |
 | Docker Desktop | 24+ | https://www.docker.com/products/docker-desktop/ |
 | `buf` | latest | `go install github.com/bufbuild/buf/cmd/buf@latest` |
 | `protoc-gen-go` | latest | `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest` |

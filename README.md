@@ -57,7 +57,8 @@ For production EKS: `./scripts/deploy/build-images.ps1 -Push` then follow [docs/
 
 **Languages:** Go 1.26 (services) · TypeScript / React 19 (web)
 **Runtime:** Kubernetes + gVisor · Redpanda (Kafka API) · TimescaleDB · Redis · gRPC
-**IaC:** Terraform (AWS) · Helm umbrella chart (HPA + PSA `restricted` + NetworkPolicies)
+**IaC:** Terraform (AWS, kubelet CPU Manager static policy on contestants pool) · Helm umbrella chart (HPA + PSA `restricted` + NetworkPolicies + Guaranteed QoS contestant pods)
+**Bot fleet:** 4 trader profiles (market_maker / aggressive_taker / retail / noise) · Limit + Market + Cancel orders · FIX 4.4 / REST / WebSocket
 **CI gates:** per-module `go test -race` + `golangci-lint` · `buf lint` · `terraform validate` · `helm lint` + `kubeconform` · `hadolint` + image-build smoke
 
 ## Status
@@ -69,9 +70,9 @@ For production EKS: `./scripts/deploy/build-images.ps1 -Push` then follow [docs/
 | Telemetry + scoring | D15–21 | ✅ done — full chain wired bot → ingester → aggregator+validator → leaderboard |
 | UI | D22–24 | ✅ done — 3 routes, synthetic fallbacks, dark theme |
 | IaC + Helm + chaos | D25–28 | ✅ done — Terraform AWS, umbrella chart, 3 chaos scenarios, deploy artifacts |
-| Polish + demo + submit | D29–32 | in progress |
+| Polish + demo + submit | D29–32 | ✅ done — perf 5K bots @ 13K req/s, sandbox attack suite (12/12 blocked on live kind), replay determinism, Market orders, CPU pinning, diverse trader profiles, saturation curve |
 
-**~28/32 days complete · ~3 days buffer remaining.**
+**32/32 days complete · submission-ready (tag `v0.1.0-submission-rc2`).**
 
 ## Repo layout
 

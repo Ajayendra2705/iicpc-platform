@@ -61,7 +61,7 @@ Each entry under `services:` becomes one Deployment + Service + HPA + PDB
 + ServiceAccount. Per-service overrides win over `defaults:`. Set
 `disabled: true` on any service to skip it for a release.
 
-## Not yet wired (D27+ work)
+## Not yet wired (deferred — tracked in IDEAS.md)
 
 - **IRSA** — `ServiceAccount` annotations pointing to IAM role ARNs
   (per-service AWS permissions)

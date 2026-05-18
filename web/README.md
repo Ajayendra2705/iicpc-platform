@@ -29,13 +29,23 @@ Override the WS URL with `NEXT_PUBLIC_LEADERBOARD_WS` and the proxy target with
 npm run build && npm run start
 ```
 
-## Features (Day 22)
+## Features
 
+**Leaderboard (`/`)**
 - Live WebSocket subscription with automatic reconnect (3s)
 - REST polling fallback (every 2s) while the socket is down
-- Sortable columns: Rank, Contestant, Score (click headers)
+- Sortable columns: Rank, Contestant, Score
 - Connection-status badge (connecting / connected / polling / disconnected)
-- Empty state until first benchmark arrives
-- Tabular numerics, top-rank highlight
+- Top-rank highlight, tabular numerics
 
-Detail pages (latency histograms, TPS over time) come in Day 23.
+**Contestant detail (`/contestant/[id]`)**
+- 4 stat tiles (current TPS, P50, P99, Correctness)
+- Latency Percentiles bar chart (P50 / P90 / P99 / P99.9)
+- TPS Over Time line chart (60-sample rolling window)
+- Outcome Breakdown pie chart with correctness summary
+- Deterministic synthetic fallback when aggregator/validator not running
+
+**Submit (`/submit`)**
+- Upload form + 7-stage pipeline visualisation
+- LogViewer with color-coded auto-scroll
+- Real upload + synthetic pipeline fallback (advances every 1.2s)

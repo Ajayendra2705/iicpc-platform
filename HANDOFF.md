@@ -2,7 +2,7 @@
 
 > **Read this first if you are a new Claude (or new dev) picking up this project.**
 > This file is the single source of truth for project state, decisions, conventions, and what's next.
-> Last updated after Day 31 completion. **Day 32 (final submission) next. 1 day of buffer remain.**
+> Last updated after Day 32 final polish + PS-audit gap closures. **All 4 PS-language gaps closed (Market orders, CPU pinning Guaranteed QoS, diverse trader profiles, saturation curve). All 24 CI jobs green on tag `v0.1.0-submission-rc2`. Repo currently private; flip public when submission portal opens.**
 
 **GitHub:** https://github.com/Ajayendra2705/iicpc-platform (private). Default branch: `main`. Local working branch: `main`.
 **CI:** GitHub Actions. Workflow file: `.github/workflows/ci.yml`. Jobs: per-module Go matrix (test -race, build, vet), per-module golangci-lint, buf-lint, **terraform-validate** (D25), **helm-lint + kubeconform** (D26, extended D27 to validate chaos manifests), **dockerfile-lint + service-image-build** (D28).
@@ -47,7 +47,7 @@ The user driving this project:
 
 | Layer | Choice | Why |
 |---|---|---|
-| Language | **Go 1.22+** everywhere | Solo dev; one toolchain; good gRPC/k8s ergonomics. Rejected: Rust hot path. |
+| Language | **Go 1.25+** (toolchain 1.26 in Dockerfiles) everywhere | Solo dev; one toolchain; good gRPC/k8s ergonomics. Rejected: Rust hot path. |
 | Repo | **Monorepo** with `go.work` (10 modules) | Cross-service refactor speed. ADR-0001. |
 | Proto | **buf** toolchain, `proto/<svc>/v1/<svc>.proto` | Versioned dirs avoid Go pkg collision. |
 | RPC | **gRPC** (services) + REST (contestant-facing) | gRPC for internal, REST for ingest. |
@@ -154,8 +154,17 @@ Each service is its own Go module (independent `go.mod`); workspace ties them to
 | **29.5** | CI cost guard: `paths-ignore` for `**/*.md` + `docs/**` — doc-only commits no longer burn Actions minutes (90% of 2000-min quota used; resets June 1) | ✅ done | `b2c914b` |
 | **30** | **Demo script** (`docs/DEMO_SCRIPT.md`) — recording-ready 5-min walkthrough with 5 scenes, exact timings, terminal commands, narration scripts, recovery plan, post-production checklist. **Contestant walkthrough** (`docs/SAMPLE_SUBMISSION_WALKTHROUGH.md`) — runtime contract, build constraints, local smoke test, upload via UI/API, score formula explainer, debugging guide, pre-submit checklist. | ✅ done | `091b839` |
 | **31** | **Demo recording prep** — `scripts/demo/prepare.ps1` one-command pre-flight (starts leaderboard SEED_DEMO + Next.js, waits for /healthz, opens browser), `teardown.ps1` clean stop. Web favicon at `web/app/icon.svg`. Smoke-tested: 6 contestants live in <5s, web HTTP 200 in <30s, teardown clean. **Recording itself is on the user** — pre-flight automation is what I can deliver. | ✅ done | `42024db` |
-| **32** | **Differentiators G1 + A1** — (G1) `services/bot-worker/benchmark_test.go::TestPerfReport_5K` drives 5 000 concurrent bots via the production `runWorker`, captures HDR-per-request, writes a 50-point CDF JSON. Measured **13 021 sustained req/s, 0.003% errors, p99 = 6.4 ms**. Full report in `docs/PERFORMANCE_REPORT.md`. (A1) Aggregator now keeps a 60-window ring of flushed histograms per contestant and exposes `GET /metrics/merged/{contestant_id}?windows=N` returning bucket-by-bucket merged percentiles — proving merged ≠ averaged. SQL-side averaging caveat documented inline in `001_telemetry_schema.sql`. | ✅ done | (this commit) |
-| 33 | Final hackathon submission (tag release `v0.1.0-submission`, verify public URL, submit through portal) | pending | |
+| **32** | **Final polish — 6 PS-audit gap closures + 5K perf + sandbox attacks** | ✅ done | various |
+| 32.G1 | `TestPerfReport_5K` drives 5 000 concurrent bots: **13 021 sustained req/s, 0.003% errors, p99 = 6.4 ms** — `docs/PERFORMANCE_REPORT.md` | ✅ done | |
+| 32.A1 | Aggregator merged-percentile endpoint (`GET /metrics/merged/{id}?windows=N`) — bucket-by-bucket HDR merge, not averaged | ✅ done | |
+| 32.C2 | Replay determinism: `WithClock` aggregator option + `determinism_test.go` proves byte-identical SHA-256 across replays | ✅ done | |
+| 32.E1 | 12-attack sandbox suite verified on live kind v1.35: 6 admission + 6 runtime, **12/12 blocked** — `docs/SANDBOX_ATTACK_REPORT.md` | ✅ done | |
+| 32.IaC | `iac-verify.ps1` + `kind-e2e-smoke.ps1` + `docs/IAC_VERIFICATION.md` — one-command proof of deliverable #3 | ✅ done | |
+| 32.M | **Market order type** plumbed REST+WS+FIX + reference orderbook IOC matcher + validator `PlaceMarket` + telemetry MARKET enum | ✅ done | 1cd7f06 |
+| 32.CPU | **CPU pinning**: contestant pods → Guaranteed QoS (req==lim, integer CPU); kubelet `--cpu-manager-policy=static --reserved-cpus=0` wired in terraform contestants node group | ✅ done | 1cd7f06 |
+| 32.P | **Diverse trader profiles** (PS): `market_maker / aggressive_taker / retail / noise` presets; bot-coordinator indexed Job rotates profiles by pod index via downward-API `JOB_COMPLETION_INDEX` | ✅ done | 55c9535 |
+| 32.S | **Saturation curve** (PS "Maximum TPS before failure"): `TestSaturationCurve` 7-step ramp + breakpoint detection; report in `docs/PERFORMANCE_REPORT.md` §"Saturation curve" | ✅ done | 55c9535 |
+| 33 | Submit through hackathon portal when it opens (final week of June 2026). Flip repo public for judge access. Tag for the actual submission. | pending | |
 
 **Current branch:** `main`. **Default PR base:** `main`.
 
@@ -307,18 +316,18 @@ curl http://localhost:8080/submissions/<id>
 
 ---
 
-## 11. What's Next (Day 32 — final submission)
+## 11. What's Next (post-D32 — submission window)
 
-D31 closed: pre-flight automation is in place and verified working. The actual recording is the user's responsibility (they need camera, mic, OBS).
+D32 polish closed. PS-audit gaps closed. All 24 CI jobs green on `v0.1.0-submission-rc2`. Repo currently **private** — flip public when submission portal opens (early June 2026).
 
-D32 work (final submission):
-1. Open OBS, follow `docs/DEMO_SCRIPT.md`, run `./scripts/demo/prepare.ps1`, record the 5-min video. Splice retakes per recovery plan.
-2. Post-process the video: trim head/tail, audio levels, captions, title card, export ≤ 100 MB. Upload as **unlisted YouTube** for backup.
-3. Tag the release: `git tag -a v0.1.0-submission -m "IICPC 2026 submission"` then `git push origin v0.1.0-submission`.
-4. Final sanity: fresh clone into a new directory, run `./scripts/demo/prepare.ps1`, confirm the UI works. If a judge tries this and it fails you lose points.
-5. Submit through the hackathon portal: include README link + YouTube URL.
+Outstanding user actions (none require new code):
+1. Watch for hackathon submission portal opening (final week, ~June 3–10).
+2. When the portal opens: `gh repo edit --visibility public --accept-visibility-change-consequences` so judges can read the source.
+3. Tag the actual submission: `git tag -a v0.1.0-submission -m "IICPC 2026 submission"` then `git push origin v0.1.0-submission`. (Current candidate tag is `v0.1.0-submission-rc2`.)
+4. Submit via whatever mechanism the hackathon communicates (URL → flip public; ZIP → `git archive`).
+5. (Optional but recommended) Record a 60–90 s screen capture using `docs/DEMO_SCRIPT.md` for the submission portal if one is requested.
 
-**Do NOT start without explicit `"go"` from user.**
+**Do NOT push speculative changes between now and submission.** The known-good tag is the insurance policy.
 
 ---
 
@@ -362,6 +371,9 @@ To switch any synthetic fallback to "Live": start the matching backend (aggregat
 | `MID_PRICE` | `100` | order price center |
 | `PRICE_SIGMA` | `1.0` | price std dev |
 | `CANCEL_RATIO` | `0.70` | fraction of events that try a cancel |
+| `MARKET_RATIO` | `0.10` | fraction of orders sent as Market (no price, IOC); set 0 to disable |
+| `BOT_PROFILE` | `` | optional trader archetype: `market_maker` \| `aggressive_taker` \| `retail` \| `noise`. When set, overrides the per-knob env vars above. |
+| `BOT_PROFILES` | `` | comma list for Indexed Job rotation; works with `JOB_COMPLETION_INDEX` to pick `profiles[idx % len]` |
 | `WORKER_ID` | `bot-0` | FIX SenderCompID prefix |
 | `WS_PATH` | `/ws` | WebSocket path appended to TARGET_URL |
 | `FIX_HOST` | `localhost` | FIX acceptor host |
@@ -467,8 +479,8 @@ To switch any synthetic fallback to "Live": start the matching backend (aggregat
 | `GRPC_ADDR` | `:9090` | |
 | `K8S_NAMESPACE` | `iicpc-contestants` | namespace for contestant pods |
 | `RUNTIME_CLASS` | `gvisor` | set empty to omit (plain runc for local dev) |
-| `CPU_REQUEST` / `CPU_LIMIT` | `500m` / `1000m` | |
-| `MEMORY_REQUEST` / `MEMORY_LIMIT` | `256Mi` / `512Mi` | |
+| `CPU_REQUEST` / `CPU_LIMIT` | `1` / `1` | Integer CPUs + equal req/lim → Guaranteed QoS → pinnable by kubelet CPU Manager static policy |
+| `MEMORY_REQUEST` / `MEMORY_LIMIT` | `512Mi` / `512Mi` | Equal req/lim required for Guaranteed QoS |
 | `EPHEMERAL_LIMIT` | `2Gi` | |
 | `READINESS_TIMEOUT` | `60s` | pod ready wait |
 
@@ -705,7 +717,7 @@ Run these to verify state:
 
 ```powershell
 git log --oneline -10
-# expect (newest first): ac5a850 (D28 go.mod align), e46bbcc/919bfc5/718d720/ccffcc3/344d331/bab922f/420871d (D28 CI fixes), eda8df2 (D28 deploy artifacts), aa8fb4b (HANDOFF D27 refresh), 9762d63 (D27 chaos), a9cb8e8 (HANDOFF D14-26 refresh)
+# expect (newest first, after D32 closure): f8b380b (gofmt fix), 45bfdef (contract doc), 55c9535 (profiles+saturation), 1cd7f06 (Market orders + CPU pinning), 82ba71c (license proprietary), 13154e1 (iac-verify polish), 6055bc9 (E1 sandbox), 6590259 (C2 replay determinism), 37ba5c8 (E1 attack suite), 9d94f33 (CI perf gate)
 
 git status --short
 # expect: clean except .claude/ and IDEATION_IMPLEMENTATION_PIPELINE.md (untracked, intentional)

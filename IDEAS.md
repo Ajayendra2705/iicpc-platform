@@ -77,13 +77,13 @@ distributed systems". Ideas grouped by which lever they pull:
 
 ## Tech debt to track
 
-- bot-worker telemetry → telemetry-ingester wire not yet connected (planned post D18).
-- `services/aggregator` averages P99 across windows in the continuous aggregate — note the statistical caveat in docs.
-- go.work uses go 1.26.0 but services pinned to 1.22 — pick one and align.
+- ~~bot-worker telemetry → telemetry-ingester wire not yet connected~~ — **resolved D21** (commit `735adc2`).
+- `services/aggregator` averages P99 across windows in the continuous aggregate — note the statistical caveat in docs. (Mitigated by A1 merged-percentile endpoint, but SQL-side averaging in the CAGG remains for backward-compat.)
+- ~~go.work uses go 1.26.0 but services pinned to 1.22~~ — **resolved D28+**: services pinned to 1.25 toolchain, Dockerfiles use golang:1.26-alpine. `GOTOOLCHAIN=go1.26.0` env recommended locally to prevent `go mod tidy` drift.
 
 ---
 
-_Last updated: D32 — differentiator brainstorm + first two shipped (2026-05-17)._
+_Last updated: D32 — all 4 differentiators shipped + 4 PS-audit gaps closed (2026-05-18)._
 
 ## Tech debt picked up since last update
 
@@ -125,3 +125,30 @@ _Last updated: D32 — differentiator brainstorm + first two shipped (2026-05-17
   same derived score vector. Added `windowing.WithClock` option for the
   clock-injection plumbing. Catches hidden non-determinism (map-iteration
   order leaks, unseeded RNG, time.Now in hot path) at unit-test time.
+
+## PS-audit gap closures (D32, 2026-05-18)
+
+After a deliberate word-by-word PS re-read, four PS-language gaps were
+closed before tagging `v0.1.0-submission-rc2`:
+
+- **Market orders (PS §"Limit Orders, Market Orders, Cancels"):** new
+  `gen.Kind` enum (Limit, Market), `OrderClient.PlaceMarketOrder`
+  implemented for REST/WS/FIX (FIX OrdType=1 with no Price tag),
+  reference-orderbook `PlaceMarket` IOC matcher, validator
+  `Book.PlaceMarket`, telemetry `ORDER_TYPE_MARKET` plumbed. Commit
+  `1cd7f06`.
+- **CPU pinning (PS §"CPU pinning, strict memory limits"):** contestant
+  pods now Guaranteed QoS (requests==limits, integer CPUs). EKS
+  contestants node group sets `--cpu-manager-policy=static
+  --reserved-cpus=0` via terraform `pre_bootstrap_user_data`. New
+  `TestPodSpecGuaranteedQoS` asserts both invariants. Commit `1cd7f06`.
+- **Diverse trader profiles (PS §"diverse market participants"):**
+  4 archetypes — `market_maker` (tight spread, high cancel, no market
+  orders), `aggressive_taker` (60 % market, near-zero cancel), `retail`
+  (wide sigma, low rate), `noise` (mixed default). bot-coordinator
+  spawns Indexed Job that rotates profiles across pod index via
+  downward-API `JOB_COMPLETION_INDEX`. Commit `55c9535`.
+- **Saturation curve (PS §"Maximum TPS handled before failure"):**
+  `TestSaturationCurve` 7-step RPS ramp with breakpoint detection and
+  Windows-tick noise filter; report in `docs/PERFORMANCE_REPORT.md`
+  §"Saturation curve". Commit `55c9535`.

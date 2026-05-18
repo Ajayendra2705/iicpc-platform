@@ -1,7 +1,8 @@
 # IICPC Platform — Architecture Blueprint
 
 Hackathon submission deliverable #2. This document is the canonical
-system spec; it tracks the actual implementation as of D29.
+system spec; it tracks the actual implementation as of D32 (submission
+state, tag `v0.1.0-submission-rc2`).
 
 ---
 
@@ -11,7 +12,7 @@ Build a distributed benchmarking and hosting platform that:
 
 1. Accepts contestant trading-engine source (C++, Rust, Go).
 2. Containerizes and sandboxes the submission with strong isolation.
-3. Spawns thousands of distributed bots that drive REST / WebSocket / FIX 4.4 order traffic.
+3. Spawns thousands of distributed bots simulating diverse market participants (market_maker, aggressive_taker, retail, noise) that drive REST / WebSocket / FIX 4.4 order traffic (Limit, Market, Cancel).
 4. Captures latency, throughput, and correctness telemetry at **nanosecond precision**.
 5. Streams a real-time, ranked leaderboard.
 6. Scales horizontally on Kubernetes (kind locally, EKS in prod).
@@ -180,7 +181,7 @@ Contestant pods + bot-worker pods inherit the strictest defaults.
 | Identity | `runAsNonRoot: true`, uid 65532, gid 65532 |
 | Filesystem | `readOnlyRootFilesystem: true`, only `/tmp` writable (emptyDir 64Mi) |
 | Seccomp | `seccompProfile.type: RuntimeDefault` |
-| Resources | cgroups v2: CPU 100m–500m / mem 64–256 Mi (services); contestant 2 CPU / 512 Mi |
+| Resources | cgroups v2: CPU 100m–500m / mem 64–256 Mi (services); contestant **1 CPU / 512 Mi Guaranteed QoS** (requests==limits, integer cores → pinned by kubelet CPU Manager static policy on EKS contestants node group) |
 | Image scanning | Trivy on submission-svc build (optional), ECR scan-on-push (always) |
 | Namespace | `pod-security.kubernetes.io/enforce: restricted` (PSA) |
 | Network | 5 NetworkPolicies (default-deny + DNS + same-ns + AWS data-plane; IMDS 169.254.169.254 explicitly blocked) |
@@ -290,13 +291,15 @@ Open decisions from D1 — now closed:
 
 | Target | Delivered |
 |---|---|
-| Telemetry ingest latency < 50 µs p99 | Untested at scale; design is non-blocking + dropping (atomic counters) — should hit it |
+| Telemetry ingest latency < 50 µs p99 | Design is non-blocking + dropping (atomic counters); not benchmarked end-to-end in isolation |
 | Order-ack measurement precision: ns | ✅ `time.Now().UnixNano()` everywhere; clock-sync via NTP estimator + chrony DaemonSet |
-| Bot fleet scale: 5 000+ concurrent | 200 proven in CI (`TestLoadConcurrentWorkers`, 0 errors). 1 K manual via `scripts/load-test.ps1` |
-| Sustained TPS per contestant: 10 K+ | Untested at full scale (D28 EKS run would prove it) |
+| Bot fleet scale: 5 000+ concurrent | ✅ **5 000 proven** via `TestPerfReport_5K` (gated `PERF_BENCH=1`); 200 in standard CI gate; saturation curve via `TestSaturationCurve` (`PERF_SATURATION=1`) |
+| Sustained TPS per contestant: 10 K+ | ✅ **13 021 sustained req/s, 0.003 % error, p99=6.4 ms** — see `docs/PERFORMANCE_REPORT.md` (single-laptop, in-process mock; cluster-scale numbers expected to scale linearly with pod count) |
 | Leaderboard update latency < 1 s end-to-end | Designed: 1s aggregator tick + WS broadcast = < 1.1 s in practice |
 | Cold-start contestant pod < 5 s | Untested; depends on image pull warmth |
 | Score computation cycle < 500 ms | leaderboard-svc tick = 1 s default (configurable via `TICK_MS`) |
+| Sandbox isolation strength | ✅ **12/12 attacks blocked** on live kind v1.35 — see `docs/SANDBOX_ATTACK_REPORT.md`; 6 admission-time + 6 runtime |
+| Replay determinism | ✅ aggregator `WithClock` option + `determinism_test.go` — same input + injected clock → byte-identical SHA-256 of contestant snapshots |
 
 ---
 

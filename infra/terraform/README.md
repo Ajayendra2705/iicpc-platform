@@ -31,7 +31,7 @@ default but region-agnostic.
 | File | Provisions |
 |---|---|
 | `vpc.tf` | VPC, 3-AZ public + private subnets, NAT, route tables (terraform-aws-modules/vpc/aws) |
-| `eks.tf` | EKS control plane, 3 managed node pools (`services` / `contestants` taints / `bots`), addons (coredns, vpc-cni, ebs-csi) |
+| `eks.tf` | EKS control plane, 3 managed node pools (`services` / `contestants` taints / `bots`), addons (coredns, vpc-cni, ebs-csi). Contestants pool ships `--cpu-manager-policy=static --reserved-cpus=0` via pre-bootstrap user-data for whole-core pinning on Guaranteed QoS pods. |
 | `rds.tf` | Postgres 16 + TimescaleDB extension (via `shared_preload_libraries`), parameter group, SG, monitoring role |
 | `redis.tf` | ElastiCache 7.1 replication group, at-rest + transit encryption |
 | `msk.tf` | MSK Serverless cluster with SASL/IAM auth |
