@@ -1,0 +1,74 @@
+{
+  "workers": 500,
+  "step_duration_ns": 5000000000,
+  "server_proc_time_ns": 50000,
+  "failure_threshold": 0.01,
+  "breakpoint_step": 0,
+  "breakpoint_rps": 945.2665977351405,
+  "last_good_rps": 3899.479325029332,
+  "steps": [
+    {
+      "target_aggregate_rps": 1000,
+      "achieved_rps": 945.2665977351405,
+      "requests": 4791,
+      "errors": 415,
+      "error_rate": 0.08662074723439783,
+      "p50_ns": 22855679,
+      "p99_ns": 150077439
+    },
+    {
+      "target_aggregate_rps": 2000,
+      "achieved_rps": 1890.1301608856204,
+      "requests": 9806,
+      "errors": 289,
+      "error_rate": 0.02947175198857842,
+      "p50_ns": 20725759,
+      "p99_ns": 94765055
+    },
+    {
+      "target_aggregate_rps": 4000,
+      "achieved_rps": 3899.479325029332,
+      "requests": 19522,
+      "errors": 22,
+      "error_rate": 0.0011269337158078066,
+      "p50_ns": 19562495,
+      "p99_ns": 94437375
+    },
+    {
+      "target_aggregate_rps": 6000,
+      "achieved_rps": 5129.362507008208,
+      "requests": 26614,
+      "errors": 380,
+      "error_rate": 0.014278199443901705,
+      "p50_ns": 23216127,
+      "p99_ns": 281280511
+    },
+    {
+      "target_aggregate_rps": 8000,
+      "achieved_rps": 6917.530253321185,
+      "requests": 35069,
+      "errors": 759,
+      "error_rate": 0.02164304656534261,
+      "p50_ns": 21905407,
+      "p99_ns": 209715199
+    },
+    {
+      "target_aggregate_rps": 10000,
+      "achieved_rps": 8603.779846223826,
+      "requests": 43308,
+      "errors": 445,
+      "error_rate": 0.010275237831347556,
+      "p50_ns": 5533695,
+      "p99_ns": 322961407
+    },
+    {
+      "target_aggregate_rps": 15000,
+      "achieved_rps": 13390.459996630578,
+      "requests": 71224,
+      "errors": 741,
+      "error_rate": 0.010403796473098956,
+      "p50_ns": 5357567,
+      "p99_ns": 94175231
+    }
+  ]
+}

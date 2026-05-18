@@ -3,6 +3,7 @@ package spawn
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -101,6 +102,19 @@ func (s *K8sSpawner) buildJob(benchmarkID string, spec BenchmarkSpec) *batchv1.J
 			Value: fmt.Sprintf("%d", spec.DurationSeconds),
 		})
 	}
+	// Profile diversification: each pod in the Indexed Job picks
+	// profiles[completion_index % len(profiles)] in bot-worker main.go,
+	// so the fleet shows the PS-mandated "diverse market participants".
+	indexed := len(spec.Profiles) > 0
+	if indexed {
+		env = append(env, corev1.EnvVar{Name: "BOT_PROFILES", Value: strings.Join(spec.Profiles, ",")})
+		env = append(env, corev1.EnvVar{
+			Name: "JOB_COMPLETION_INDEX",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.annotations['batch.kubernetes.io/job-completion-index']"},
+			},
+		})
+	}
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -116,6 +130,13 @@ func (s *K8sSpawner) buildJob(benchmarkID string, spec BenchmarkSpec) *batchv1.J
 			Parallelism:             &workers,
 			Completions:             &workers,
 			TTLSecondsAfterFinished: &ttl,
+			CompletionMode: func() *batchv1.CompletionMode {
+				if indexed {
+					m := batchv1.IndexedCompletion
+					return &m
+				}
+				return nil
+			}(),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{

@@ -11,6 +11,12 @@ type BenchmarkSpec struct {
 	Protocol        string  `json:"protocol"`     // rest | ws | fix
 	ArrivalMode     string  `json:"arrival_mode"` // uniform | poisson
 	DurationSeconds int     `json:"duration_seconds"`
+	// Profiles is the list of trader archetypes the bot fleet should
+	// simulate (PS §"Distributed Load Generator": "diverse market
+	// participants"). The coordinator spawns one indexed Job whose pods
+	// are partitioned across these profiles by pod index. Empty/nil →
+	// single "noise" profile (back-compat).
+	Profiles []string `json:"profiles,omitempty"`
 }
 
 // JobStatus reports the live state of a benchmark's K8s Job.

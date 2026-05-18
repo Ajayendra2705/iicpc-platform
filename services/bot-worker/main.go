@@ -46,6 +46,7 @@ type config struct {
 	telemetryAddr   string // telemetry-ingester gRPC address (empty = disabled)
 	telemetryBuffer int    // telemetry client queue size
 	contestantID    string // contestant_id tag on emitted events
+	botProfile      string // PS-mandated diverse trader archetype: market_maker | aggressive_taker | retail | noise
 }
 
 func loadConfig() config {
@@ -72,6 +73,7 @@ func loadConfig() config {
 		telemetryAddr:   envOr("TELEMETRY_ADDR", ""),
 		telemetryBuffer: envInt("TELEMETRY_BUFFER", 1024),
 		contestantID:    envOr("CONTESTANT_ID", "unknown"),
+		botProfile:      resolveProfile(),
 	}
 }
 
@@ -82,11 +84,27 @@ func main() {
 	cfg := loadConfig()
 
 	rec := stats.New()
-	genCfg := gen.Config{
-		MidPrice:    cfg.midPrice,
-		PriceSigma:  cfg.priceSigma,
-		CancelRatio: cfg.cancelRatio,
-		MarketRatio: cfg.marketRatio,
+	// If BOT_PROFILE is set, use the preset Config that represents the
+	// PS-mandated "diverse market participant" archetype. Otherwise fall back
+	// to the per-env-var settings (mid/sigma/cancel/market) for finer tuning.
+	var genCfg gen.Config
+	if cfg.botProfile != "" {
+		c, err := gen.PresetConfig(gen.Profile(cfg.botProfile), cfg.midPrice, cfg.priceSigma)
+		if err != nil {
+			logger.Error("bot profile invalid", "err", err)
+			os.Exit(1)
+		}
+		genCfg = c
+		logger.Info("bot profile applied", "profile", cfg.botProfile,
+			"cancel_ratio", genCfg.CancelRatio, "market_ratio", genCfg.MarketRatio,
+			"price_sigma", genCfg.PriceSigma)
+	} else {
+		genCfg = gen.Config{
+			MidPrice:    cfg.midPrice,
+			PriceSigma:  cfg.priceSigma,
+			CancelRatio: cfg.cancelRatio,
+			MarketRatio: cfg.marketRatio,
+		}
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -345,6 +363,33 @@ func envFloat(key string, fallback float64) float64 {
 		}
 	}
 	return fallback
+}
+
+// resolveProfile picks the trader-archetype profile for this bot pod.
+// Priority:
+//  1. BOT_PROFILE explicit (e.g., set by operator or test) — used as-is.
+//  2. BOT_PROFILES (comma list) + JOB_COMPLETION_INDEX from an Indexed Job —
+//     pick profiles[index % len(profiles)] so the fleet rotates across the
+//     PS-mandated diverse market participants.
+//  3. Empty → bot-worker falls through to per-env Config (legacy behaviour).
+func resolveProfile() string {
+	if p := os.Getenv("BOT_PROFILE"); p != "" {
+		return p
+	}
+	list := os.Getenv("BOT_PROFILES")
+	idxStr := os.Getenv("JOB_COMPLETION_INDEX")
+	if list == "" || idxStr == "" {
+		return ""
+	}
+	parts := strings.Split(list, ",")
+	if len(parts) == 0 {
+		return ""
+	}
+	idx, err := strconv.Atoi(idxStr)
+	if err != nil || idx < 0 {
+		return parts[0]
+	}
+	return strings.TrimSpace(parts[idx%len(parts)])
 }
 
 func envInt(key string, fallback int) int {
