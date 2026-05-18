@@ -16,7 +16,7 @@ Your binary must serve HTTP on the port given by the `RUNTIME_PORT` env var
 | Method | Path | Body / Params | Response |
 |---|---|---|---|
 | `GET` | `/health` | — | `200 OK` (no body required) |
-| `POST` | `/order` | JSON: `{"side":"buy\|sell", "price":<float>, "qty":<int>, "id":<string opt>}` | `200 OK` + JSON: `{"id":"<server-assigned-or-echoed>", "fills":[Fill]}` |
+| `POST` | `/order` | JSON: `{"side":"buy\|sell", "kind":"limit\|market" (default limit), "price":<float, omit for market>, "qty":<int>, "id":<string opt>}` | `200 OK` + JSON: `{"id":"<server-assigned-or-echoed>", "fills":[Fill]}` |
 | `DELETE` | `/order/{id}` | — | `204 No Content` if cancelled, `404` if id unknown |
 | `GET` | `/orderbook` | — | JSON snapshot: `{"bids":[Level], "asks":[Level]}` |
 
@@ -32,6 +32,13 @@ client's `id` field on `POST /order` and echo it back. The bot fleet sends
 its own IDs but is happy to accept yours instead — see
 `samples/reference-orderbook/main.go` for the canonical handler shape.
 
+**Market order semantics (IOC):** when `kind == "market"`, `price` is
+absent and the engine must match the order against the opposite book at
+any price, returning fills for whatever it could match. The unfilled
+remainder **must not rest** on the book — market orders are
+Immediate-Or-Cancel by convention. Limit orders (the default) rest the
+unfilled remainder as usual.
+
 ---
 
 ## 2. Build constraints
@@ -45,7 +52,7 @@ its own IDs but is happy to accept yours instead — see
 | Network | egress is **blocked**; ingress only on `RUNTIME_PORT` |
 | Filesystem | rootfs is read-only; only `/tmp` is writable (size capped) |
 | Identity | runs as uid 65532 — don't try `chown root` |
-| CPU / memory | hard cap at 2 CPU / 512 MiB; pid limit 256 |
+| CPU / memory | hard cap at 1 CPU / 512 MiB (Guaranteed QoS — requests==limits, integer CPUs → pinned by kubelet CPU Manager static policy on EKS); pid limit 256 |
 | Privileges | `capabilities.drop: [ALL]`, `runtimeClassName: gvisor` |
 
 If your code does `unsafe` syscalls or pokes `/dev`, gVisor will block it.
