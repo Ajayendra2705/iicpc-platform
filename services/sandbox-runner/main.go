@@ -21,8 +21,8 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
 	cfg := runner.Config{
-		Namespace:        getEnv("K8S_NAMESPACE", "iicpc-contestants"),
-		RuntimeClass:     getEnv("RUNTIME_CLASS", "gvisor"),
+		Namespace:    getEnv("K8S_NAMESPACE", "iicpc-contestants"),
+		RuntimeClass: getEnv("RUNTIME_CLASS", "gvisor"),
 		// CPU/memory requests == limits → Guaranteed QoS class, which is the
 		// prerequisite for kubelet CPU Manager static policy (CPU pinning).
 		// Integer CPU values are required for the static policy to pin whole

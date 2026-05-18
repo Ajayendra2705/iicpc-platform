@@ -91,9 +91,9 @@ func TestSaturationCurve(t *testing.T) {
 		StepDurationNs int64        `json:"step_duration_ns"`
 		ProcTimeNs     int64        `json:"server_proc_time_ns"`
 		FailThreshold  float64      `json:"failure_threshold"`
-		BreakpointStep int          `json:"breakpoint_step"`     // index into Steps; -1 if no break
-		BreakpointRPS  float64      `json:"breakpoint_rps"`      // achieved RPS at breakpoint
-		LastGoodRPS    float64      `json:"last_good_rps"`       // last step where error_rate ≤ threshold
+		BreakpointStep int          `json:"breakpoint_step"` // index into Steps; -1 if no break
+		BreakpointRPS  float64      `json:"breakpoint_rps"`  // achieved RPS at breakpoint
+		LastGoodRPS    float64      `json:"last_good_rps"`   // last step where error_rate ≤ threshold
 		Steps          []stepReport `json:"steps"`
 	}
 
