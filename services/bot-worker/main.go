@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -289,7 +290,7 @@ func runWorker(
 					tele.Emit(&telemetryv1.OrderEvent{
 						ContestantId: contestantID, BotId: botID, OrderId: pick,
 						Type:     telemetryv1.OrderType_ORDER_TYPE_CANCEL,
-						Result:   telemetryv1.OrderResult_ORDER_RESULT_REJECTED,
+						Result:   resultForErr(err),
 						SentTsNs: start.UnixNano(),
 					})
 				}
@@ -298,30 +299,49 @@ func runWorker(
 			// place a new order on every arrival
 			ord := g.Next()
 			start := time.Now()
-			var oid string
-			var latNs int64
+			var res client.PlaceResult
 			var err error
 			teleType := telemetryv1.OrderType_ORDER_TYPE_LIMIT
 			if ord.Kind == gen.Market {
 				teleType = telemetryv1.OrderType_ORDER_TYPE_MARKET
-				oid, latNs, err = cli.PlaceMarketOrder(ctx, string(ord.Side), ord.Qty)
+				res, err = cli.PlaceMarketOrder(ctx, string(ord.Side), ord.Qty)
 			} else {
-				oid, latNs, err = cli.PlaceOrder(ctx, string(ord.Side), ord.Price, ord.Qty)
+				res, err = cli.PlaceOrder(ctx, string(ord.Side), ord.Price, ord.Qty)
 			}
+			teleSide := sideEnum(string(ord.Side))
 			switch {
 			case err == nil:
-				rec.RecordLatency(latNs)
+				rec.RecordLatency(res.LatencyNs)
 				// Market orders are IOC: they don't rest on the book, so don't
 				// track for later cancellation. Only limit orders go to liveIDs.
 				if ord.Kind != gen.Market {
-					liveIDs = append(liveIDs, oid)
+					liveIDs = append(liveIDs, res.ID)
+				}
+				// Classify the fill so the validator can score accuracy. When the
+				// transport didn't parse fills (FillKnown=false), leave the result
+				// UNSPECIFIED so the validator replays for book state but does not
+				// score a fill it cannot trust.
+				result := telemetryv1.OrderResult_ORDER_RESULT_UNSPECIFIED
+				var filled int64
+				if res.FillKnown {
+					filled = res.Filled
+					switch {
+					case filled >= int64(ord.Qty):
+						result = telemetryv1.OrderResult_ORDER_RESULT_FILLED
+					case filled > 0:
+						result = telemetryv1.OrderResult_ORDER_RESULT_PARTIAL
+					default:
+						result = telemetryv1.OrderResult_ORDER_RESULT_ACK_ONLY
+					}
 				}
 				tele.Emit(&telemetryv1.OrderEvent{
-					ContestantId: contestantID, BotId: botID, OrderId: oid,
+					ContestantId: contestantID, BotId: botID, OrderId: res.ID,
 					Type:     teleType,
-					Result:   telemetryv1.OrderResult_ORDER_RESULT_ACK_ONLY,
-					SentTsNs: start.UnixNano(), AckTsNs: start.Add(time.Duration(latNs)).UnixNano(),
-					LatencyNs: latNs, Price: ord.Price, Quantity: int64(ord.Qty),
+					Side:     teleSide,
+					Result:   result,
+					SentTsNs: start.UnixNano(), AckTsNs: start.Add(time.Duration(res.LatencyNs)).UnixNano(),
+					LatencyNs: res.LatencyNs, Price: ord.Price, Quantity: int64(ord.Qty),
+					FilledQuantity: filled,
 				})
 			case isShutdownErr(ctx, err):
 				return
@@ -331,7 +351,8 @@ func runWorker(
 				tele.Emit(&telemetryv1.OrderEvent{
 					ContestantId: contestantID, BotId: botID,
 					Type:     teleType,
-					Result:   telemetryv1.OrderResult_ORDER_RESULT_REJECTED,
+					Side:     teleSide,
+					Result:   resultForErr(err),
 					SentTsNs: start.UnixNano(),
 					Price:    ord.Price, Quantity: int64(ord.Qty),
 				})
@@ -340,13 +361,38 @@ func runWorker(
 	}
 }
 
-// isShutdownErr returns true if err is the result of ctx cancellation (graceful
-// shutdown) and should not be counted as a real failure.
+// isShutdownErr returns true only when err is the result of *parent* context
+// cancellation (graceful shutdown). A per-request client timeout
+// (http.Client.Timeout) must NOT be treated as shutdown — it is a real
+// contestant timeout and is scored as ORDER_RESULT_TIMEOUT via resultForErr.
 func isShutdownErr(ctx context.Context, err error) bool {
 	if ctx.Err() != nil {
 		return true
 	}
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+	return errors.Is(err, context.Canceled)
+}
+
+// resultForErr classifies a non-shutdown request failure. A deadline/timeout
+// (the contestant didn't acknowledge in time) is scored as a TIMEOUT and feeds
+// the stability penalty; anything else is an outright REJECTED.
+func resultForErr(err error) telemetryv1.OrderResult {
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return telemetryv1.OrderResult_ORDER_RESULT_TIMEOUT
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return telemetryv1.OrderResult_ORDER_RESULT_TIMEOUT
+	}
+	return telemetryv1.OrderResult_ORDER_RESULT_REJECTED
+}
+
+// sideEnum maps the generator's buy/sell string to the telemetry OrderSide so
+// the validator can replay price-time priority without guessing from the id.
+func sideEnum(side string) telemetryv1.OrderSide {
+	if strings.EqualFold(side, "sell") {
+		return telemetryv1.OrderSide_ORDER_SIDE_SELL
+	}
+	return telemetryv1.OrderSide_ORDER_SIDE_BUY
 }
 
 func envOr(key, fallback string) string {

@@ -28,6 +28,14 @@ enum OrderResult {
   ORDER_RESULT_ACK_ONLY = 5;
 }
 
+// OrderSide is the buy/sell direction of an order. Carried explicitly so the
+// validator can replay price-time priority without guessing from the order id.
+enum OrderSide {
+  ORDER_SIDE_UNSPECIFIED = 0;
+  ORDER_SIDE_BUY = 1;
+  ORDER_SIDE_SELL = 2;
+}
+
 message OrderEvent {
   string trace_id = 1;
   string contestant_id = 2;
@@ -45,6 +53,8 @@ message OrderEvent {
   int64 filled_quantity = 12;
 
   string reject_reason = 13;
+
+  OrderSide side = 14; // buy/sell direction, for price-time-priority replay
 }
 
 message IngestAck {

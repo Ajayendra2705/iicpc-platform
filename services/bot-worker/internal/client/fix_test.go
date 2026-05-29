@@ -80,6 +80,48 @@ func TestFixAppFromAppRoutesExecutionReport(t *testing.T) {
 	}
 }
 
+func TestFixAppFromAppParsesCumQty(t *testing.T) {
+	app := newFixApp(testLogger())
+	ch := make(chan fixResult, 1)
+	app.mu.Lock()
+	app.pending["ord-010"] = ch
+	app.mu.Unlock()
+
+	msg := quickfix.NewMessage()
+	msg.Header.SetField(tagMsgType, quickfix.FIXString("8"))
+	msg.Body.SetField(tagClOrdID, quickfix.FIXString("ord-010"))
+	msg.Body.SetField(tagOrderID, quickfix.FIXString("exch-1"))
+	msg.Body.SetField(tagCumQty, quickfix.FIXString("7"))
+
+	_ = app.FromApp(msg, quickfix.SessionID{})
+
+	res := <-ch
+	if !res.fillKnown || res.cumQty != 7 {
+		t.Fatalf("cumQty: got known=%v qty=%d want known=true qty=7", res.fillKnown, res.cumQty)
+	}
+}
+
+func TestFixAppFromAppNoCumQtyIsUnknown(t *testing.T) {
+	app := newFixApp(testLogger())
+	ch := make(chan fixResult, 1)
+	app.mu.Lock()
+	app.pending["ord-011"] = ch
+	app.mu.Unlock()
+
+	msg := quickfix.NewMessage()
+	msg.Header.SetField(tagMsgType, quickfix.FIXString("8"))
+	msg.Body.SetField(tagClOrdID, quickfix.FIXString("ord-011"))
+	msg.Body.SetField(tagOrderID, quickfix.FIXString("exch-2"))
+	// no CumQty → fill not authoritative
+
+	_ = app.FromApp(msg, quickfix.SessionID{})
+
+	res := <-ch
+	if res.fillKnown {
+		t.Fatal("fill must be unknown when ExecutionReport omits CumQty")
+	}
+}
+
 func TestFixAppFromAppIgnoresNonExecutionReport(t *testing.T) {
 	app := newFixApp(testLogger())
 	ch := make(chan fixResult, 1)

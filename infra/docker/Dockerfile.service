@@ -25,29 +25,22 @@ ARG TARGETARCH
 # code locally, Go still validates pseudo-versions via git.
 RUN apk add --no-cache git ca-certificates
 
+# Build in pure module mode (GOWORK=off). Each service's go.mod carries a
+# `replace` for the in-repo proto module pointing at ../../proto/gen/go, so the
+# build resolves it from the local filesystem — no go.work, no GITHUB_TOKEN, and
+# no attempt to fetch the private pseudo-version. Public deps come from the
+# module proxy against each service's complete go.sum.
 ENV CGO_ENABLED=0 \
-    GOPRIVATE=github.com/Ajayendra2705 \
-    GONOSUMCHECK=github.com/Ajayendra2705 \
+    GOWORK=off \
     GOTOOLCHAIN=auto
 
 WORKDIR /src
-COPY go.work go.work.sum ./
 COPY proto proto
-COPY samples samples
 COPY services services
 
-# Build the target service. The workspace `use ./proto/gen/go` directive
-# resolves the private proto module locally, BUT Go still verifies the
-# pseudo-version against the remote — for that we mount GITHUB_TOKEN as
-# a build secret and rewrite https://github.com/ to inject the token.
-# Locally without the secret the fallback no-ops; works for public modules.
 WORKDIR /src/services/${SERVICE}
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=secret,id=github_token \
-    if [ -s /run/secrets/github_token ]; then \
-      git config --global url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/"; \
-    fi && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags="-s -w" -o /out/app .
 

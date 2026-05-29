@@ -24,10 +24,13 @@ const (
 	tagOrderQty     quickfix.Tag = 38
 	tagTransactTime quickfix.Tag = 60
 	tagOrderID      quickfix.Tag = 37
+	tagCumQty       quickfix.Tag = 14 // cumulative filled quantity on an ExecutionReport
 )
 
 type fixResult struct {
-	orderID string
+	orderID   string
+	cumQty    int64
+	fillKnown bool // true if the ExecutionReport carried CumQty (tag 14)
 }
 
 // fixApp implements quickfix.Application and routes inbound ExecutionReports
@@ -78,6 +81,13 @@ func (a *fixApp) FromApp(msg *quickfix.Message, _ quickfix.SessionID) quickfix.M
 		return nil
 	}
 	orderID, _ := msg.Body.GetString(tagOrderID)
+	// CumQty (14) is the cumulative filled quantity. Absent on a pure ack →
+	// fill is not authoritative and won't be fill-accuracy scored.
+	res := fixResult{orderID: orderID}
+	if cum, err := msg.Body.GetInt(tagCumQty); err == nil {
+		res.cumQty = int64(cum)
+		res.fillKnown = true
+	}
 
 	a.mu.Lock()
 	ch, ok := a.pending[clOrdID]
@@ -87,7 +97,7 @@ func (a *fixApp) FromApp(msg *quickfix.Message, _ quickfix.SessionID) quickfix.M
 	a.mu.Unlock()
 
 	if ok {
-		ch <- fixResult{orderID: orderID}
+		ch <- res
 	}
 	return nil
 }
@@ -173,18 +183,21 @@ func (c *FIXClient) Connect(ctx context.Context) error {
 // PlaceOrder sends a FIX 4.4 NewOrderSingle (OrdType=2, Limit) and waits for
 // an ExecutionReport. Returns the exchange OrderID, RTT in nanoseconds, and
 // any error.
-func (c *FIXClient) PlaceOrder(ctx context.Context, side string, price float64, qty int) (string, int64, error) {
+func (c *FIXClient) PlaceOrder(ctx context.Context, side string, price float64, qty int) (PlaceResult, error) {
 	return c.sendNewOrder(ctx, side, &price, qty)
 }
 
 // PlaceMarketOrder sends a FIX 4.4 NewOrderSingle with OrdType=1 (Market) and
 // no Price tag. Market orders are IOC by convention: contestant must fill what
 // it can at any price and reject remainder (no resting).
-func (c *FIXClient) PlaceMarketOrder(ctx context.Context, side string, qty int) (string, int64, error) {
+func (c *FIXClient) PlaceMarketOrder(ctx context.Context, side string, qty int) (PlaceResult, error) {
 	return c.sendNewOrder(ctx, side, nil, qty)
 }
 
-func (c *FIXClient) sendNewOrder(ctx context.Context, side string, price *float64, qty int) (string, int64, error) {
+// sendNewOrder sends a NewOrderSingle and waits for an ExecutionReport. The
+// returned PlaceResult reports the cumulative fill (CumQty, tag 14) when the
+// report carries it, so FIX orders are fill-accuracy scored just like REST.
+func (c *FIXClient) sendNewOrder(ctx context.Context, side string, price *float64, qty int) (PlaceResult, error) {
 	clOrdID := fmt.Sprintf("bot-%d", c.seq.Add(1))
 
 	fixSide := "1" // buy
@@ -220,22 +233,22 @@ func (c *FIXClient) sendNewOrder(ctx context.Context, side string, price *float6
 		c.app.mu.Lock()
 		delete(c.app.pending, clOrdID)
 		c.app.mu.Unlock()
-		return "", 0, fmt.Errorf("fix send: %w", err)
+		return PlaceResult{}, fmt.Errorf("fix send: %w", err)
 	}
 
 	select {
 	case res := <-ch:
-		return res.orderID, time.Since(start).Nanoseconds(), nil
+		return PlaceResult{ID: res.orderID, Filled: res.cumQty, FillKnown: res.fillKnown, LatencyNs: time.Since(start).Nanoseconds()}, nil
 	case <-ctx.Done():
 		c.app.mu.Lock()
 		delete(c.app.pending, clOrdID)
 		c.app.mu.Unlock()
-		return "", 0, ctx.Err()
+		return PlaceResult{}, ctx.Err()
 	case <-time.After(5 * time.Second):
 		c.app.mu.Lock()
 		delete(c.app.pending, clOrdID)
 		c.app.mu.Unlock()
-		return "", 0, fmt.Errorf("fix: ExecutionReport timeout for %s", clOrdID)
+		return PlaceResult{}, fmt.Errorf("fix: ExecutionReport timeout for %s", clOrdID)
 	}
 }
 

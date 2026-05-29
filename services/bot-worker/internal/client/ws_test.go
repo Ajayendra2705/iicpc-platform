@@ -59,15 +59,19 @@ func TestWSPlaceOrder(t *testing.T) {
 	}
 	defer c.Close()
 
-	id, latNs, err := c.PlaceOrder(context.Background(), "buy", 100.5, 5)
+	res, err := c.PlaceOrder(context.Background(), "buy", 100.5, 5)
 	if err != nil {
 		t.Fatalf("PlaceOrder: %v", err)
 	}
-	if id != "ws-ord-1" {
-		t.Errorf("id: got %q want ws-ord-1", id)
+	if res.ID != "ws-ord-1" {
+		t.Errorf("id: got %q want ws-ord-1", res.ID)
 	}
-	if latNs <= 0 {
+	if res.LatencyNs <= 0 {
 		t.Error("latNs must be positive")
+	}
+	// Echo server sends no "filled" field → fill is not authoritative.
+	if res.FillKnown {
+		t.Error("fill should be unknown when response omits the filled field")
 	}
 }
 
@@ -106,7 +110,7 @@ func TestWSServerError(t *testing.T) {
 	}
 	defer c.Close()
 
-	_, _, err = c.PlaceOrder(context.Background(), "buy", 100, 1)
+	_, err = c.PlaceOrder(context.Background(), "buy", 100, 1)
 	if err == nil {
 		t.Fatal("expected error from server error response")
 	}

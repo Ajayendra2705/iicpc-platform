@@ -138,7 +138,7 @@ func TestSaturationCurve(t *testing.T) {
 						return
 					case <-ticker.C:
 						start := time.Now()
-						_, _, err := cli.PlaceOrder(ctx, "buy", 100.0, 1)
+						_, err := cli.PlaceOrder(ctx, "buy", 100.0, 1)
 						reqs.Add(1)
 						if err != nil {
 							errs.Add(1)

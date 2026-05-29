@@ -59,24 +59,33 @@ func (v *Validator) Process(e *telemetryv1.OrderEvent) {
 	switch e.GetType() {
 	case telemetryv1.OrderType_ORDER_TYPE_LIMIT, telemetryv1.OrderType_ORDER_TYPE_MARKET:
 		side := Buy
-		// Side encoding: for the validator we infer from price vs mid? No —
-		// the proto doesn't carry side directly. We use a heuristic: a bot
-		// alternates sides in its generator. For D18 we treat all orders
-		// as the side encoded in the OrderID prefix (`b-` or `s-`), else
-		// default Buy. Production: extend proto with a side enum.
-		if len(e.GetOrderId()) > 0 && e.GetOrderId()[0] == 's' {
+		if e.GetSide() == telemetryv1.OrderSide_ORDER_SIDE_SELL {
 			side = Sell
 		}
-		expected := book.Place(Order{
-			ID:    e.GetOrderId(),
-			Side:  side,
-			Price: e.GetPrice(),
-			Qty:   e.GetQuantity(),
-			TsNs:  e.GetSentTsNs(),
-		})
-		c.total++
-		if expected != e.GetFilledQuantity() {
-			c.mismatches++
+
+		// Replay against the reference book to compute the canonical fill.
+		// Market orders are IOC (match-and-discard); limit orders rest.
+		var expected int64
+		if e.GetType() == telemetryv1.OrderType_ORDER_TYPE_MARKET {
+			expected = book.PlaceMarket(side, e.GetQuantity())
+		} else {
+			expected = book.Place(Order{
+				ID:    e.GetOrderId(),
+				Side:  side,
+				Price: e.GetPrice(),
+				Qty:   e.GetQuantity(),
+				TsNs:  e.GetSentTsNs(),
+			})
+		}
+
+		// Only score fill accuracy when the bot reported an authoritative fill.
+		// An UNSPECIFIED result means the transport (e.g. FIX) didn't capture a
+		// fill, so we replayed only to keep book state consistent.
+		if e.GetResult() != telemetryv1.OrderResult_ORDER_RESULT_UNSPECIFIED {
+			c.total++
+			if expected != e.GetFilledQuantity() {
+				c.mismatches++
+			}
 		}
 	case telemetryv1.OrderType_ORDER_TYPE_CANCEL:
 		book.Cancel(e.GetOrderId())

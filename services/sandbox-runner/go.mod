@@ -1,6 +1,6 @@
 module github.com/Ajayendra2705/iicpc-platform/services/sandbox-runner
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/Ajayendra2705/iicpc-platform/proto/gen/go v0.0.0-20260514193702-018b413fd0e6
@@ -49,3 +49,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+// The proto module lives in this repo. Resolve it from the local path so the
+// service builds in pure module mode (e.g. inside the Docker image, with no
+// go.work and no GITHUB_TOKEN) without trying to fetch the private pseudo-version.
+// In workspace builds (local dev / CI) the go.work `use` directive takes
+// precedence and this replace is ignored.
+replace github.com/Ajayendra2705/iicpc-platform/proto/gen/go => ../../proto/gen/go

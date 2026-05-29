@@ -7,23 +7,42 @@ import (
 	"github.com/Ajayendra2705/iicpc-platform/services/validator/internal/replay"
 )
 
-func event(contestantID, orderID string, otype telemetryv1.OrderType, price float64, qty, filled, ts int64) *telemetryv1.OrderEvent {
+// event builds an OrderEvent with an authoritative fill result so the validator
+// scores it. Side is now carried explicitly (no more order-id-prefix heuristic).
+func event(contestantID, orderID string, otype telemetryv1.OrderType, side telemetryv1.OrderSide, price float64, qty, filled, ts int64) *telemetryv1.OrderEvent {
+	result := telemetryv1.OrderResult_ORDER_RESULT_ACK_ONLY
+	switch {
+	case qty > 0 && filled >= qty:
+		result = telemetryv1.OrderResult_ORDER_RESULT_FILLED
+	case filled > 0:
+		result = telemetryv1.OrderResult_ORDER_RESULT_PARTIAL
+	}
 	return &telemetryv1.OrderEvent{
 		ContestantId:   contestantID,
 		OrderId:        orderID,
 		Type:           otype,
+		Side:           side,
 		Price:          price,
 		Quantity:       qty,
 		FilledQuantity: filled,
+		Result:         result,
 		SentTsNs:       ts,
 	}
 }
 
+const (
+	buy  = telemetryv1.OrderSide_ORDER_SIDE_BUY
+	sell = telemetryv1.OrderSide_ORDER_SIDE_SELL
+	lim  = telemetryv1.OrderType_ORDER_TYPE_LIMIT
+	mkt  = telemetryv1.OrderType_ORDER_TYPE_MARKET
+	cxl  = telemetryv1.OrderType_ORDER_TYPE_CANCEL
+)
+
 func TestPerfectCorrectness(t *testing.T) {
 	v := replay.NewValidator()
 	// sell first, then buy that fully fills the sell
-	v.Process(event("c1", "s1", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 99, 5, 0, 1))
-	v.Process(event("c1", "b1", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 100, 5, 5, 2))
+	v.Process(event("c1", "s1", lim, sell, 99, 5, 0, 1))
+	v.Process(event("c1", "b1", lim, buy, 100, 5, 5, 2))
 
 	r, ok := v.Report("c1")
 	if !ok {
@@ -39,9 +58,9 @@ func TestPerfectCorrectness(t *testing.T) {
 
 func TestMismatchDetected(t *testing.T) {
 	v := replay.NewValidator()
-	v.Process(event("c1", "s1", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 99, 5, 0, 1))
+	v.Process(event("c1", "s1", lim, sell, 99, 5, 0, 1))
 	// contestant claims a fill of 10, but reference book can only fill 5
-	v.Process(event("c1", "b1", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 100, 10, 10, 2))
+	v.Process(event("c1", "b1", lim, buy, 100, 10, 10, 2))
 
 	r, _ := v.Report("c1")
 	if r.Mismatches != 1 {
@@ -52,12 +71,24 @@ func TestMismatchDetected(t *testing.T) {
 	}
 }
 
+func TestMarketOrderFillScored(t *testing.T) {
+	v := replay.NewValidator()
+	// rest a sell at 99 qty 5, then a market buy for 8 → IOC fills 5, no rest.
+	v.Process(event("c1", "s1", lim, sell, 99, 5, 0, 1))
+	v.Process(event("c1", "m1", mkt, buy, 0, 8, 5, 2))
+
+	r, _ := v.Report("c1")
+	if r.TotalChecked != 2 || r.Mismatches != 0 {
+		t.Errorf("market fill should match (expected 5): %+v", r)
+	}
+}
+
 func TestPerContestantIsolation(t *testing.T) {
 	v := replay.NewValidator()
-	v.Process(event("c1", "s1", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 99, 5, 0, 1))
-	v.Process(event("c2", "s2", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 99, 5, 0, 1))
-	v.Process(event("c1", "b1", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 100, 5, 5, 2))
-	v.Process(event("c2", "b2", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 100, 5, 0, 2)) // wrong claim
+	v.Process(event("c1", "s1", lim, sell, 99, 5, 0, 1))
+	v.Process(event("c2", "s2", lim, sell, 99, 5, 0, 1))
+	v.Process(event("c1", "b1", lim, buy, 100, 5, 5, 2))
+	v.Process(event("c2", "b2", lim, buy, 100, 5, 0, 2)) // wrong claim
 
 	r1, _ := v.Report("c1")
 	r2, _ := v.Report("c2")
@@ -69,10 +100,24 @@ func TestPerContestantIsolation(t *testing.T) {
 	}
 }
 
+func TestUnspecifiedResultNotScored(t *testing.T) {
+	v := replay.NewValidator()
+	// A FIX-style event with no authoritative fill: replayed for book state but
+	// not counted toward correctness.
+	e := event("c1", "b1", lim, buy, 100, 5, 0, 1)
+	e.Result = telemetryv1.OrderResult_ORDER_RESULT_UNSPECIFIED
+	v.Process(e)
+
+	r, _ := v.Report("c1")
+	if r.TotalChecked != 0 {
+		t.Fatalf("unspecified-result event must not be scored: TotalChecked=%d want 0", r.TotalChecked)
+	}
+}
+
 func TestCancelDoesNotAffectCounters(t *testing.T) {
 	v := replay.NewValidator()
-	v.Process(event("c1", "s1", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 99, 5, 0, 1))
-	v.Process(event("c1", "s1", telemetryv1.OrderType_ORDER_TYPE_CANCEL, 0, 0, 0, 2))
+	v.Process(event("c1", "s1", lim, sell, 99, 5, 0, 1))
+	v.Process(event("c1", "s1", cxl, sell, 0, 0, 0, 2))
 
 	r, _ := v.Report("c1")
 	if r.TotalChecked != 1 {
@@ -82,9 +127,9 @@ func TestCancelDoesNotAffectCounters(t *testing.T) {
 
 func TestAllReports(t *testing.T) {
 	v := replay.NewValidator()
-	v.Process(event("c1", "b1", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 100, 5, 0, 1))
-	v.Process(event("c2", "b1", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 100, 5, 0, 1))
-	v.Process(event("c3", "b1", telemetryv1.OrderType_ORDER_TYPE_LIMIT, 100, 5, 0, 1))
+	v.Process(event("c1", "b1", lim, buy, 100, 5, 0, 1))
+	v.Process(event("c2", "b1", lim, buy, 100, 5, 0, 1))
+	v.Process(event("c3", "b1", lim, buy, 100, 5, 0, 1))
 
 	all := v.All()
 	if len(all) != 3 {

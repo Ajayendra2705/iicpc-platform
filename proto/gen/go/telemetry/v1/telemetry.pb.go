@@ -131,6 +131,57 @@ func (OrderResult) EnumDescriptor() ([]byte, []int) {
 	return file_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{1}
 }
 
+// OrderSide is the buy/sell direction of an order. Carried explicitly so the
+// validator can replay price-time priority without guessing from the order id.
+type OrderSide int32
+
+const (
+	OrderSide_ORDER_SIDE_UNSPECIFIED OrderSide = 0
+	OrderSide_ORDER_SIDE_BUY         OrderSide = 1
+	OrderSide_ORDER_SIDE_SELL        OrderSide = 2
+)
+
+// Enum value maps for OrderSide.
+var (
+	OrderSide_name = map[int32]string{
+		0: "ORDER_SIDE_UNSPECIFIED",
+		1: "ORDER_SIDE_BUY",
+		2: "ORDER_SIDE_SELL",
+	}
+	OrderSide_value = map[string]int32{
+		"ORDER_SIDE_UNSPECIFIED": 0,
+		"ORDER_SIDE_BUY":         1,
+		"ORDER_SIDE_SELL":        2,
+	}
+)
+
+func (x OrderSide) Enum() *OrderSide {
+	p := new(OrderSide)
+	*p = x
+	return p
+}
+
+func (x OrderSide) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (OrderSide) Descriptor() protoreflect.EnumDescriptor {
+	return file_telemetry_v1_telemetry_proto_enumTypes[2].Descriptor()
+}
+
+func (OrderSide) Type() protoreflect.EnumType {
+	return &file_telemetry_v1_telemetry_proto_enumTypes[2]
+}
+
+func (x OrderSide) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use OrderSide.Descriptor instead.
+func (OrderSide) EnumDescriptor() ([]byte, []int) {
+	return file_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{2}
+}
+
 type OrderEvent struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	TraceId        string                 `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
@@ -146,6 +197,7 @@ type OrderEvent struct {
 	Quantity       int64                  `protobuf:"varint,11,opt,name=quantity,proto3" json:"quantity,omitempty"`
 	FilledQuantity int64                  `protobuf:"varint,12,opt,name=filled_quantity,json=filledQuantity,proto3" json:"filled_quantity,omitempty"`
 	RejectReason   string                 `protobuf:"bytes,13,opt,name=reject_reason,json=rejectReason,proto3" json:"reject_reason,omitempty"`
+	Side           OrderSide              `protobuf:"varint,14,opt,name=side,proto3,enum=telemetry.v1.OrderSide" json:"side,omitempty"` // buy/sell direction, for price-time-priority replay
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -269,6 +321,13 @@ func (x *OrderEvent) GetRejectReason() string {
 		return x.RejectReason
 	}
 	return ""
+}
+
+func (x *OrderEvent) GetSide() OrderSide {
+	if x != nil {
+		return x.Side
+	}
+	return OrderSide_ORDER_SIDE_UNSPECIFIED
 }
 
 type IngestAck struct {
@@ -539,7 +598,7 @@ var File_telemetry_v1_telemetry_proto protoreflect.FileDescriptor
 
 const file_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\n" +
-	"\x1ctelemetry/v1/telemetry.proto\x12\ftelemetry.v1\"\xb7\x03\n" +
+	"\x1ctelemetry/v1/telemetry.proto\x12\ftelemetry.v1\"\xe4\x03\n" +
 	"\n" +
 	"OrderEvent\x12\x19\n" +
 	"\btrace_id\x18\x01 \x01(\tR\atraceId\x12#\n" +
@@ -557,7 +616,8 @@ const file_telemetry_v1_telemetry_proto_rawDesc = "" +
 	" \x01(\x01R\x05price\x12\x1a\n" +
 	"\bquantity\x18\v \x01(\x03R\bquantity\x12'\n" +
 	"\x0ffilled_quantity\x18\f \x01(\x03R\x0efilledQuantity\x12#\n" +
-	"\rreject_reason\x18\r \x01(\tR\frejectReason\"4\n" +
+	"\rreject_reason\x18\r \x01(\tR\frejectReason\x12+\n" +
+	"\x04side\x18\x0e \x01(\x0e2\x17.telemetry.v1.OrderSideR\x04side\"4\n" +
 	"\tIngestAck\x12'\n" +
 	"\x0fevents_received\x18\x01 \x01(\x03R\x0eeventsReceived\"\x82\x01\n" +
 	"\x13QueryMetricsRequest\x12#\n" +
@@ -588,11 +648,15 @@ const file_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\x14ORDER_RESULT_PARTIAL\x10\x02\x12\x19\n" +
 	"\x15ORDER_RESULT_REJECTED\x10\x03\x12\x18\n" +
 	"\x14ORDER_RESULT_TIMEOUT\x10\x04\x12\x19\n" +
-	"\x15ORDER_RESULT_ACK_ONLY\x10\x052\xaf\x01\n" +
+	"\x15ORDER_RESULT_ACK_ONLY\x10\x05*P\n" +
+	"\tOrderSide\x12\x1a\n" +
+	"\x16ORDER_SIDE_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eORDER_SIDE_BUY\x10\x01\x12\x13\n" +
+	"\x0fORDER_SIDE_SELL\x10\x022\xaf\x01\n" +
 	"\x11TelemetryIngester\x12C\n" +
 	"\fIngestStream\x12\x18.telemetry.v1.OrderEvent\x1a\x17.telemetry.v1.IngestAck(\x01\x12U\n" +
-	"\fQueryMetrics\x12!.telemetry.v1.QueryMetricsRequest\x1a\".telemetry.v1.QueryMetricsResponseB\xb4\x01\n" +
-	"\x10com.telemetry.v1B\x0eTelemetryProtoP\x01Z?github.com/iicpc/platform/proto/gen/go/telemetry/v1;telemetryv1\xa2\x02\x03TXX\xaa\x02\fTelemetry.V1\xca\x02\fTelemetry\\V1\xe2\x02\x18Telemetry\\V1\\GPBMetadata\xea\x02\rTelemetry::V1b\x06proto3"
+	"\fQueryMetrics\x12!.telemetry.v1.QueryMetricsRequest\x1a\".telemetry.v1.QueryMetricsResponseB\xc2\x01\n" +
+	"\x10com.telemetry.v1B\x0eTelemetryProtoP\x01ZMgithub.com/Ajayendra2705/iicpc-platform/proto/gen/go/telemetry/v1;telemetryv1\xa2\x02\x03TXX\xaa\x02\fTelemetry.V1\xca\x02\fTelemetry\\V1\xe2\x02\x18Telemetry\\V1\\GPBMetadata\xea\x02\rTelemetry::V1b\x06proto3"
 
 var (
 	file_telemetry_v1_telemetry_proto_rawDescOnce sync.Once
@@ -606,30 +670,32 @@ func file_telemetry_v1_telemetry_proto_rawDescGZIP() []byte {
 	return file_telemetry_v1_telemetry_proto_rawDescData
 }
 
-var file_telemetry_v1_telemetry_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_telemetry_v1_telemetry_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_telemetry_v1_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_telemetry_v1_telemetry_proto_goTypes = []any{
 	(OrderType)(0),               // 0: telemetry.v1.OrderType
 	(OrderResult)(0),             // 1: telemetry.v1.OrderResult
-	(*OrderEvent)(nil),           // 2: telemetry.v1.OrderEvent
-	(*IngestAck)(nil),            // 3: telemetry.v1.IngestAck
-	(*QueryMetricsRequest)(nil),  // 4: telemetry.v1.QueryMetricsRequest
-	(*LatencyPercentiles)(nil),   // 5: telemetry.v1.LatencyPercentiles
-	(*QueryMetricsResponse)(nil), // 6: telemetry.v1.QueryMetricsResponse
+	(OrderSide)(0),               // 2: telemetry.v1.OrderSide
+	(*OrderEvent)(nil),           // 3: telemetry.v1.OrderEvent
+	(*IngestAck)(nil),            // 4: telemetry.v1.IngestAck
+	(*QueryMetricsRequest)(nil),  // 5: telemetry.v1.QueryMetricsRequest
+	(*LatencyPercentiles)(nil),   // 6: telemetry.v1.LatencyPercentiles
+	(*QueryMetricsResponse)(nil), // 7: telemetry.v1.QueryMetricsResponse
 }
 var file_telemetry_v1_telemetry_proto_depIdxs = []int32{
 	0, // 0: telemetry.v1.OrderEvent.type:type_name -> telemetry.v1.OrderType
 	1, // 1: telemetry.v1.OrderEvent.result:type_name -> telemetry.v1.OrderResult
-	5, // 2: telemetry.v1.QueryMetricsResponse.latency:type_name -> telemetry.v1.LatencyPercentiles
-	2, // 3: telemetry.v1.TelemetryIngester.IngestStream:input_type -> telemetry.v1.OrderEvent
-	4, // 4: telemetry.v1.TelemetryIngester.QueryMetrics:input_type -> telemetry.v1.QueryMetricsRequest
-	3, // 5: telemetry.v1.TelemetryIngester.IngestStream:output_type -> telemetry.v1.IngestAck
-	6, // 6: telemetry.v1.TelemetryIngester.QueryMetrics:output_type -> telemetry.v1.QueryMetricsResponse
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	2, // 2: telemetry.v1.OrderEvent.side:type_name -> telemetry.v1.OrderSide
+	6, // 3: telemetry.v1.QueryMetricsResponse.latency:type_name -> telemetry.v1.LatencyPercentiles
+	3, // 4: telemetry.v1.TelemetryIngester.IngestStream:input_type -> telemetry.v1.OrderEvent
+	5, // 5: telemetry.v1.TelemetryIngester.QueryMetrics:input_type -> telemetry.v1.QueryMetricsRequest
+	4, // 6: telemetry.v1.TelemetryIngester.IngestStream:output_type -> telemetry.v1.IngestAck
+	7, // 7: telemetry.v1.TelemetryIngester.QueryMetrics:output_type -> telemetry.v1.QueryMetricsResponse
+	6, // [6:8] is the sub-list for method output_type
+	4, // [4:6] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_telemetry_v1_telemetry_proto_init() }
@@ -642,7 +708,7 @@ func file_telemetry_v1_telemetry_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_telemetry_v1_telemetry_proto_rawDesc), len(file_telemetry_v1_telemetry_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      3,
 			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,

@@ -205,24 +205,24 @@ type recordingClient struct {
 	recorder *perfRecorder
 }
 
-func (c *recordingClient) PlaceOrder(ctx context.Context, side string, price float64, qty int) (string, int64, error) {
-	id, lat, err := c.inner.PlaceOrder(ctx, side, price, qty)
+func (c *recordingClient) PlaceOrder(ctx context.Context, side string, price float64, qty int) (client.PlaceResult, error) {
+	res, err := c.inner.PlaceOrder(ctx, side, price, qty)
 	if err != nil {
 		c.recorder.recordErr()
 	} else {
-		c.recorder.recordOK(lat)
+		c.recorder.recordOK(res.LatencyNs)
 	}
-	return id, lat, err
+	return res, err
 }
 
-func (c *recordingClient) PlaceMarketOrder(ctx context.Context, side string, qty int) (string, int64, error) {
-	id, lat, err := c.inner.PlaceMarketOrder(ctx, side, qty)
+func (c *recordingClient) PlaceMarketOrder(ctx context.Context, side string, qty int) (client.PlaceResult, error) {
+	res, err := c.inner.PlaceMarketOrder(ctx, side, qty)
 	if err != nil {
 		c.recorder.recordErr()
 	} else {
-		c.recorder.recordOK(lat)
+		c.recorder.recordOK(res.LatencyNs)
 	}
-	return id, lat, err
+	return res, err
 }
 
 func (c *recordingClient) CancelOrder(ctx context.Context, id string) (int64, error) {

@@ -23,6 +23,9 @@ type wsResp struct {
 	ID     string `json:"id"`
 	Status string `json:"status,omitempty"`
 	Error  string `json:"error,omitempty"`
+	// Filled is the optional reported fill quantity. A pointer so we can tell
+	// "reported zero fill" (authoritative) from "field absent" (unknown).
+	Filled *int64 `json:"filled,omitempty"`
 }
 
 // WSClient sends orders over a WebSocket connection.
@@ -45,12 +48,25 @@ func DialWS(ctx context.Context, rawURL string) (*WSClient, error) {
 	return &WSClient{conn: conn}, nil
 }
 
-func (c *WSClient) PlaceOrder(ctx context.Context, side string, price float64, qty int) (string, int64, error) {
-	return c.roundTrip(ctx, wsReq{Action: "place", Side: side, Kind: "limit", Price: price, Qty: qty})
+func (c *WSClient) PlaceOrder(ctx context.Context, side string, price float64, qty int) (PlaceResult, error) {
+	return c.place(ctx, wsReq{Action: "place", Side: side, Kind: "limit", Price: price, Qty: qty})
 }
 
-func (c *WSClient) PlaceMarketOrder(ctx context.Context, side string, qty int) (string, int64, error) {
-	return c.roundTrip(ctx, wsReq{Action: "place", Side: side, Kind: "market", Qty: qty})
+func (c *WSClient) PlaceMarketOrder(ctx context.Context, side string, qty int) (PlaceResult, error) {
+	return c.place(ctx, wsReq{Action: "place", Side: side, Kind: "market", Qty: qty})
+}
+
+func (c *WSClient) place(ctx context.Context, req wsReq) (PlaceResult, error) {
+	resp, latNs, err := c.roundTrip(ctx, req)
+	if err != nil {
+		return PlaceResult{LatencyNs: latNs}, err
+	}
+	res := PlaceResult{ID: resp.ID, LatencyNs: latNs}
+	if resp.Filled != nil {
+		res.Filled = *resp.Filled
+		res.FillKnown = true
+	}
+	return res, nil
 }
 
 func (c *WSClient) CancelOrder(ctx context.Context, id string) (int64, error) {
@@ -66,10 +82,10 @@ func (c *WSClient) Close() error {
 	return c.conn.Close()
 }
 
-func (c *WSClient) roundTrip(ctx context.Context, req wsReq) (id string, latNs int64, err error) {
+func (c *WSClient) roundTrip(ctx context.Context, req wsReq) (resp wsResp, latNs int64, err error) {
 	msg, err := json.Marshal(req)
 	if err != nil {
-		return "", 0, fmt.Errorf("ws marshal: %w", err)
+		return wsResp{}, 0, fmt.Errorf("ws marshal: %w", err)
 	}
 
 	deadline, ok := ctx.Deadline()
@@ -81,20 +97,19 @@ func (c *WSClient) roundTrip(ctx context.Context, req wsReq) (id string, latNs i
 
 	start := time.Now()
 	if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-		return "", 0, fmt.Errorf("ws write: %w", err)
+		return wsResp{}, 0, fmt.Errorf("ws write: %w", err)
 	}
 	_, raw, err := c.conn.ReadMessage()
 	latNs = time.Since(start).Nanoseconds()
 	if err != nil {
-		return "", latNs, fmt.Errorf("ws read: %w", err)
+		return wsResp{}, latNs, fmt.Errorf("ws read: %w", err)
 	}
 
-	var resp wsResp
 	if err := json.Unmarshal(raw, &resp); err != nil {
-		return "", latNs, fmt.Errorf("ws decode: %w", err)
+		return wsResp{}, latNs, fmt.Errorf("ws decode: %w", err)
 	}
 	if resp.Error != "" {
-		return "", latNs, fmt.Errorf("ws server error: %s", resp.Error)
+		return wsResp{}, latNs, fmt.Errorf("ws server error: %s", resp.Error)
 	}
-	return resp.ID, latNs, nil
+	return resp, latNs, nil
 }
