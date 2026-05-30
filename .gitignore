@@ -76,3 +76,6 @@ ProblemStatement.txt
 # kind-e2e-smoke evidence — regenerated on demand by scripts/kind-e2e-smoke.ps1
 docs/artifacts/
 
+
+# local build/run artifacts
+.bin/
