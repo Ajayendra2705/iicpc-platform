@@ -68,6 +68,7 @@ The helm chart deploys the services; one-shots come first.
 ```powershell
 kubectl apply -f infra/manifests/chrony-daemonset.yaml
 kubectl apply -f infra/manifests/sandbox-runner.yaml
+kubectl apply -f infra/manifests/bot-namespace.yaml   # iicpc-bots ns (PSA) + bot-coordinator RBAC
 ```
 
 ## 5. Run the TimescaleDB migration
