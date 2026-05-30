@@ -126,6 +126,7 @@ iac-kubeconform:
 	@kubeconform -strict -summary -kubernetes-version 1.30.0 \
 		-ignore-missing-schemas \
 		infra/manifests/sandbox-runner.yaml \
+		infra/manifests/bot-namespace.yaml \
 		infra/manifests/minio.yaml \
 		infra/manifests/chrony-daemonset.yaml \
 		infra/manifests/chaos/*.yaml

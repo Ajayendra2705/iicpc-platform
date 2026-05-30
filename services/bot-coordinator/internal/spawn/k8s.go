@@ -173,11 +173,32 @@ func (s *K8sSpawner) buildJob(benchmarkID string, spec BenchmarkSpec) *batchv1.J
 		job.Spec.ActiveDeadlineSeconds = &deadline
 	}
 
+	// Harden the bot-worker pod so it passes PodSecurityAdmission
+	// enforce=restricted in the bots namespace (mirrors the helm template).
+	ps := &job.Spec.Template.Spec
+	ps.SecurityContext = &corev1.PodSecurityContext{
+		RunAsNonRoot:   boolPtr(true),
+		RunAsUser:      int64Ptr(65532),
+		RunAsGroup:     int64Ptr(65532),
+		FSGroup:        int64Ptr(65532),
+		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+	}
+	ps.Containers[0].SecurityContext = &corev1.SecurityContext{
+		AllowPrivilegeEscalation: boolPtr(false),
+		ReadOnlyRootFilesystem:   boolPtr(true),
+		Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+	}
+	ps.Containers[0].VolumeMounts = []corev1.VolumeMount{{Name: "tmp", MountPath: "/tmp"}}
+	ps.Volumes = []corev1.Volume{{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}}}
+
 	return job
 }
 
 func jobName(benchmarkID string) string {
 	return "bot-" + benchmarkID
 }
+
+func boolPtr(b bool) *bool    { return &b }
+func int64Ptr(i int64) *int64 { return &i }
 
 var _ JobSpawner = (*K8sSpawner)(nil)

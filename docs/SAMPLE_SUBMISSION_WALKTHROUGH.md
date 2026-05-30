@@ -11,7 +11,7 @@ example of every requirement.
 ## 1. The runtime contract
 
 Your binary must serve HTTP on the port given by the `RUNTIME_PORT` env var
-(default 8080) and implement these four endpoints:
+(default 9100) and implement these four endpoints:
 
 | Method | Path | Body / Params | Response |
 |---|---|---|---|

@@ -58,7 +58,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: iicpc-platform
+              kubernetes.io/metadata.name: iicpc-bots
           podSelector:
             matchLabels:
               app: bot-worker

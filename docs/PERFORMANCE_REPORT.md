@@ -147,24 +147,26 @@ Tunable env: `SAT_WORKERS` (500), `SAT_STEP_DURATION` (5s),
 
 | Step | Aggregate RPS target | Achieved | Errors | p99      |
 | ---- | -------------------- | -------- | ------ | -------- |
-| 1    | 1 000                | 945      | 8.66 % | 150 ms   |
-| 2    | 2 000                | 1 890    | 2.95 % | 95 ms    |
-| 3    | 4 000                | 3 899    | 0.11 % | 94 ms    |
-| 4    | 6 000                | 5 129    | 1.43 % | 281 ms   |
-| 5    | 8 000                | 6 918    | 2.16 % | 210 ms   |
-| 6    | 10 000               | 8 604    | 1.03 % | 323 ms   |
-| 7    | 15 000               | 13 390   | 1.04 % | 94 ms    |
+| 1    | 1 000                | 900      | 0.00 % | 50 ms    |
+| 2    | 2 000                | 1 982    | 4.87 % | 33.8 ms  |
+| 3    | 4 000                | 3 934    | 1.28 % | 60.9 ms  |
+| 4    | 6 000                | 5 966    | 1.42 % | 49.7 ms  |
+| 5    | 8 000                | 7 943    | 1.17 % | 24.1 ms  |
+| 6    | 10 000               | 9 950    | 1.00 % | 36.0 ms  |
+| 7    | 15 000               | 14 934   | 0.30 % | 22.0 ms  |
 
 Raw JSON: [`saturation-report.json`](./saturation-report.json).
 
 ### What this tells us
 
-- **The platform sustains ~13 K aggregate RPS even with a 50 µs/req
-  simulated backend** — same as the headline 5K-bot run, with a
+- **The platform sustains ~15 K aggregate RPS even with a 50 µs/req
+  simulated backend** — in line with the headline 5K-bot run, with a
   different harness shape.
-- The "saturation" visible at steps 4–6 is the **mock server's own
-  capacity** (single-process Go `httptest.Server` doing forced 50 µs
-  sleeps), not the bot fleet hitting a wall.
+- The sub-1 % error band tightening at the top step (15 K @ 0.3 %) shows
+  the bot fleet itself is not the bottleneck; the per-step error blips at
+  lower targets are the **mock server's own capacity** (single-process Go
+  `httptest.Server` doing forced 50 µs sleeps) plus Windows ticker noise,
+  not the fleet hitting a wall.
 - On loopback (no server cost) the harness sustains far higher — see the
   headline 5K-bot run for the loopback ceiling.
 - The methodology is the load-bearing artifact: a production run on EKS

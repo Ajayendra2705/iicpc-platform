@@ -1,0 +1,42 @@
+# Namespace for bot-worker load-generation Jobs (spawned by bot-coordinator),
+# plus the RBAC that lets the bot-coordinator ServiceAccount manage those Jobs.
+#
+# The bot pods run under PodSecurityAdmission enforce=restricted — the Job
+# pod spec built in services/bot-coordinator/internal/spawn/k8s.go sets the
+# matching securityContext (non-root, seccomp RuntimeDefault, drop ALL caps,
+# read-only rootfs) so the pods are admitted here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iicpc-bots
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# Role: bot-coordinator manages bot-worker Jobs (and reads their status) here.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: bot-coordinator-jobs
+  namespace: iicpc-bots
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "delete", "get", "list", "watch"]
+---
+# RoleBinding: grants the Role to the bot-coordinator ServiceAccount, which the
+# helm chart creates in the platform namespace (iicpc).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bot-coordinator-jobs
+  namespace: iicpc-bots
+subjects:
+  - kind: ServiceAccount
+    name: bot-coordinator
+    namespace: iicpc
+roleRef:
+  kind: Role
+  name: bot-coordinator-jobs
+  apiGroup: rbac.authorization.k8s.io

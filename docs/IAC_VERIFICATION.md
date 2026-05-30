@@ -142,7 +142,7 @@ making `kubectl scale` / HPA the natural scaling lever.
 | Service group           | Workload kind | Where defined                                       |
 | ----------------------- | ------------- | --------------------------------------------------- |
 | api-gateway, submission-svc, sandbox-runner, bot-coordinator, telemetry-ingester, aggregator, validator, leaderboard-svc | `Deployment` | `infra/helm/iicpc-platform/templates/deployment.yaml` (templated per service in `values.yaml`) |
-| bot-worker (the load generator) | `Deployment` with HPA-friendly resource requests | same chart; `replicas` field configurable per environment |
+| bot-worker (the load generator) | K8s `Job` (per benchmark, `parallelism` = bot count) | spawned by bot-coordinator — `services/bot-coordinator/internal/spawn/k8s.go` (not in the helm chart) |
 | Sidecars / cluster-wides | `DaemonSet`   | `infra/manifests/chrony-daemonset.yaml`             |
 
 `HorizontalPodAutoscaler` template lives at
@@ -153,13 +153,14 @@ likewise templated at `templates/poddisruptionbudget.yaml`.
 To verify horizontal scaling actually works on a running cluster:
 
 ```powershell
-kubectl scale deploy/bot-worker --replicas=20 -n iicpc-platform
-kubectl get pods -n iicpc-platform -l app=bot-worker -w
+kubectl scale deploy/leaderboard-svc --replicas=12 -n iicpc
+kubectl get pods -n iicpc -l app.kubernetes.io/name=leaderboard-svc -o wide -w
 ```
 
-(The 5K-bot perf benchmark in `docs/PERFORMANCE_REPORT.md` is a downstream
-proof that horizontal scaling actually works — 5000 worker goroutines
-across pods sustaining 13K req/s.)
+This exact scale-out was exercised on a live 4-node kind cluster — see
+`docs/artifacts/kind-multinode/` (6→12 replicas spread across worker nodes).
+The bot fleet scales the same way, but as Job `parallelism` rather than a
+Deployment replica count.
 
 ---
 

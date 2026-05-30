@@ -32,7 +32,7 @@ type placeReq struct {
 func main() {
 	port := os.Getenv("RUNTIME_PORT")
 	if port == "" {
-		port = "8080"
+		port = "9100"
 	}
 
 	mux := http.NewServeMux()

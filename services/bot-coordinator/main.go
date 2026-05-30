@@ -22,7 +22,7 @@ func main() {
 	var spawner spawn.JobSpawner
 	if spawnerKind == "k8s" {
 		s, err := spawn.NewK8sSpawner(spawn.K8sConfig{
-			Namespace:      envOr("K8S_NAMESPACE", "iicpc"),
+			Namespace:      envOr("K8S_NAMESPACE", "iicpc-bots"),
 			BotWorkerImage: envOr("BOT_WORKER_IMAGE", "localhost:5000/bot-worker:latest"),
 			KubeConfigPath: envOr("KUBECONFIG", ""),
 		})
