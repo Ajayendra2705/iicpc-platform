@@ -20,6 +20,7 @@ import (
 type mockFetcher struct {
 	snaps   []ingest.AggSnapshot
 	reports []ingest.ValReport
+	crashes []ingest.CrashReport
 }
 
 func (m *mockFetcher) Snapshots(_ context.Context) ([]ingest.AggSnapshot, error) {
@@ -27,6 +28,9 @@ func (m *mockFetcher) Snapshots(_ context.Context) ([]ingest.AggSnapshot, error)
 }
 func (m *mockFetcher) Reports(_ context.Context) ([]ingest.ValReport, error) {
 	return m.reports, nil
+}
+func (m *mockFetcher) Crashes(_ context.Context) ([]ingest.CrashReport, error) {
+	return m.crashes, nil
 }
 
 func newIngester(f ingest.Fetcher) (*ingest.Ingester, *store.Stub, *ws.Hub) {
@@ -118,7 +122,13 @@ func TestHTTPFetcherSnapshots(t *testing.T) {
 	}))
 	defer val.Close()
 
-	f := ingest.NewHTTPFetcher(agg.URL, val.URL)
+	sbx := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]ingest.CrashReport{{ContestantID: "x", Crashes: 2}})
+	}))
+	defer sbx.Close()
+
+	f := ingest.NewHTTPFetcher(agg.URL, val.URL, sbx.URL)
 	snaps, err := f.Snapshots(context.Background())
 	if err != nil || len(snaps) != 1 || snaps[0].ContestantID != "x" {
 		t.Fatalf("Snapshots: snaps=%+v err=%v", snaps, err)
@@ -126,5 +136,48 @@ func TestHTTPFetcherSnapshots(t *testing.T) {
 	reps, err := f.Reports(context.Background())
 	if err != nil || len(reps) != 1 || reps[0].Correctness != 0.9 {
 		t.Fatalf("Reports: reps=%+v err=%v", reps, err)
+	}
+	crs, err := f.Crashes(context.Background())
+	if err != nil || len(crs) != 1 || crs[0].Crashes != 2 {
+		t.Fatalf("Crashes: crs=%+v err=%v", crs, err)
+	}
+}
+
+func TestHTTPFetcherCrashesDisabledWhenURLEmpty(t *testing.T) {
+	f := ingest.NewHTTPFetcher("http://agg", "http://val", "")
+	crs, err := f.Crashes(context.Background())
+	if err != nil || crs != nil {
+		t.Fatalf("expected no crashes when URL empty: crs=%+v err=%v", crs, err)
+	}
+}
+
+func TestTickAppliesCrashPenalty(t *testing.T) {
+	// Same perfect metrics for both; only "doomed" has a crash, which the
+	// 10k penalty floors to 0 — proving the crash signal reaches the score.
+	f := &mockFetcher{
+		snaps: []ingest.AggSnapshot{
+			{ContestantID: "healthy", P99Ns: 1_000, TPS: 50_000},
+			{ContestantID: "doomed", P99Ns: 1_000, TPS: 50_000},
+		},
+		reports: []ingest.ValReport{
+			{ContestantID: "healthy", Correctness: 1.0},
+			{ContestantID: "doomed", Correctness: 1.0},
+		},
+		crashes: []ingest.CrashReport{{ContestantID: "doomed", Crashes: 1}},
+	}
+	ing, s, _ := newIngester(f)
+	if err := ing.Tick(context.Background()); err != nil {
+		t.Fatalf("Tick: %v", err)
+	}
+	top, _ := s.Top(context.Background(), 0)
+	scores := map[string]int64{}
+	for _, e := range top {
+		scores[e.ContestantID] = e.Score
+	}
+	if scores["healthy"] <= 0 {
+		t.Errorf("healthy contestant should score > 0, got %d", scores["healthy"])
+	}
+	if scores["doomed"] != 0 {
+		t.Errorf("crashed contestant should be floored to 0, got %d", scores["doomed"])
 	}
 }

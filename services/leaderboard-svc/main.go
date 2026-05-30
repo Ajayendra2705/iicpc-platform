@@ -25,6 +25,7 @@ func main() {
 	storeKind := envOr("STORE_KIND", "stub")
 	aggURL := envOr("AGGREGATOR_URL", "http://127.0.0.1:8084")
 	valURL := envOr("VALIDATOR_URL", "http://127.0.0.1:8085")
+	sandboxURL := envOr("SANDBOX_RUNNER_URL", "") // empty → crashes penalty disabled
 	tickMs := envInt("TICK_MS", 1000)
 	topN := envInt("TOP_N", 100)
 	seedDemo := envOr("SEED_DEMO", "false") == "true"
@@ -56,7 +57,7 @@ func main() {
 		go seeder.Run(ctx, s, hub, topN, time.Duration(tickMs)*time.Millisecond, log)
 	} else {
 		ing := &ingest.Ingester{
-			Fetcher:  ingest.NewHTTPFetcher(aggURL, valURL),
+			Fetcher:  ingest.NewHTTPFetcher(aggURL, valURL, sandboxURL),
 			Calc:     score.New(score.DefaultConfig()),
 			Store:    s,
 			Hub:      hub,

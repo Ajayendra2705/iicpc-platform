@@ -20,6 +20,9 @@ import (
 type Fetcher interface {
 	Snapshots(ctx context.Context) ([]AggSnapshot, error)
 	Reports(ctx context.Context) ([]ValReport, error)
+	// Crashes returns per-contestant crash counts. Optional: implementations
+	// return an empty slice when no crash source is configured.
+	Crashes(ctx context.Context) ([]CrashReport, error)
 }
 
 // Ingester ticks every Interval, fetches metrics, computes scores, writes
@@ -66,6 +69,17 @@ func (i *Ingester) Tick(ctx context.Context) error {
 		correctness[r.ContestantID] = r.Correctness
 	}
 
+	// Crashes are optional — if the sandbox-runner crash source is unreachable
+	// or not configured, score with zero crashes rather than failing the tick.
+	crashes := make(map[string]int64)
+	if crashReports, err := i.Fetcher.Crashes(ctx); err != nil {
+		i.Log.Warn("fetch crashes", "err", err)
+	} else {
+		for _, c := range crashReports {
+			crashes[c.ContestantID] = c.Crashes
+		}
+	}
+
 	for _, s := range snaps {
 		corr, ok := correctness[s.ContestantID]
 		if !ok {
@@ -75,6 +89,7 @@ func (i *Ingester) Tick(ctx context.Context) error {
 			P99Ns:       s.P99Ns,
 			TPS:         s.TPS,
 			Correctness: corr,
+			Crashes:     crashes[s.ContestantID],
 			Timeouts:    s.Timeouts,
 		})
 		if err := i.Store.Upsert(ctx, s.ContestantID, r.FinalScore); err != nil {
@@ -95,18 +110,20 @@ func (i *Ingester) Tick(ctx context.Context) error {
 	return nil
 }
 
-// HTTPFetcher hits aggregator and validator HTTP endpoints.
+// HTTPFetcher hits aggregator, validator, and sandbox-runner HTTP endpoints.
 type HTTPFetcher struct {
-	AggregatorURL string // e.g. http://aggregator:8084
-	ValidatorURL  string // e.g. http://validator:8085
-	HC            *http.Client
+	AggregatorURL    string // e.g. http://aggregator:8084
+	ValidatorURL     string // e.g. http://validator:8085
+	SandboxRunnerURL string // e.g. http://sandbox-runner:8090 ("" disables crashes)
+	HC               *http.Client
 }
 
-func NewHTTPFetcher(aggURL, valURL string) *HTTPFetcher {
+func NewHTTPFetcher(aggURL, valURL, sandboxURL string) *HTTPFetcher {
 	return &HTTPFetcher{
-		AggregatorURL: aggURL,
-		ValidatorURL:  valURL,
-		HC:            &http.Client{Timeout: 3 * time.Second},
+		AggregatorURL:    aggURL,
+		ValidatorURL:     valURL,
+		SandboxRunnerURL: sandboxURL,
+		HC:               &http.Client{Timeout: 3 * time.Second},
 	}
 }
 
@@ -121,6 +138,17 @@ func (f *HTTPFetcher) Snapshots(ctx context.Context) ([]AggSnapshot, error) {
 func (f *HTTPFetcher) Reports(ctx context.Context) ([]ValReport, error) {
 	var out []ValReport
 	if err := f.getJSON(ctx, f.ValidatorURL+"/validate", &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (f *HTTPFetcher) Crashes(ctx context.Context) ([]CrashReport, error) {
+	if f.SandboxRunnerURL == "" {
+		return nil, nil // crash source not configured
+	}
+	var out []CrashReport
+	if err := f.getJSON(ctx, f.SandboxRunnerURL+"/crashes", &out); err != nil {
 		return nil, err
 	}
 	return out, nil

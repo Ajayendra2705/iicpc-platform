@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -56,6 +58,31 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
+	// Crash tracking: watch contestant pods for restarts / Failed phase and
+	// serve the per-contestant crash counts over HTTP. leaderboard-svc polls
+	// /crashes and feeds it into the stability ("crashes") score penalty.
+	tracker := runner.NewCrashTracker()
+	go func() {
+		if err := r.WatchCrashes(ctx, tracker); err != nil {
+			slog.Error("crash watch", "err", err)
+		}
+	}()
+
+	httpAddr := getEnv("HTTP_ADDR", ":8090")
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	mux.HandleFunc("GET /crashes", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(tracker.Report())
+	})
+	httpSrv := &http.Server{Addr: httpAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	go func() {
+		slog.Info("sandbox-runner http", "addr", httpAddr)
+		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("http serve", "err", err)
+		}
+	}()
+
 	go func() {
 		slog.Info("sandbox-runner listening", "addr", addr)
 		if err := gs.Serve(lis); err != nil {
@@ -65,6 +92,9 @@ func main() {
 
 	<-ctx.Done()
 	slog.Info("shutdown signal received")
+	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = httpSrv.Shutdown(shutCtx)
 	gs.GracefulStop()
 	slog.Info("stopped")
 }

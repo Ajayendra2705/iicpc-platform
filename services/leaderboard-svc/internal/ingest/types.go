@@ -21,3 +21,10 @@ type ValReport struct {
 	Mismatches   int64   `json:"mismatches"`
 	Correctness  float64 `json:"correctness"`
 }
+
+// CrashReport mirrors sandbox-runner's GET /crashes row — the per-contestant
+// crash count that feeds the score's stability penalty.
+type CrashReport struct {
+	ContestantID string `json:"contestant_id"`
+	Crashes      int64  `json:"crashes"`
+}

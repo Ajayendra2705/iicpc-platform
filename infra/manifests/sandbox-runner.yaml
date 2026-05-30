@@ -100,9 +100,13 @@ spec:
           ports:
             - name: grpc
               containerPort: 9090
+            - name: http
+              containerPort: 8090
           env:
             - name: K8S_NAMESPACE
               value: "iicpc-contestants"
+            - name: HTTP_ADDR
+              value: ":8090"
             - name: RUNTIME_CLASS
               value: "gvisor"
             # Guaranteed QoS for contestant pods: requests==limits, integer
@@ -151,3 +155,6 @@ spec:
     - name: grpc
       port: 9090
       targetPort: grpc
+    - name: http
+      port: 8090
+      targetPort: http

@@ -115,6 +115,49 @@ func isPodReady(pod *corev1.Pod) bool {
 	return false
 }
 
+// WatchCrashes watches contestant pods in the namespace and records their
+// crash counts into the tracker until ctx is done. The watch is re-established
+// on transient drops / server timeouts so it survives the life of the process.
+func (r *Runner) WatchCrashes(ctx context.Context, tracker *CrashTracker) error {
+	for {
+		if ctx.Err() != nil {
+			return nil
+		}
+		if err := r.watchCrashesOnce(ctx, tracker); err != nil && ctx.Err() == nil {
+			// transient watch failure — back off briefly, then re-establish.
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(2 * time.Second):
+			}
+		}
+	}
+}
+
+func (r *Runner) watchCrashesOnce(ctx context.Context, tracker *CrashTracker) error {
+	w, err := r.client.CoreV1().Pods(r.cfg.Namespace).Watch(ctx, metav1.ListOptions{
+		LabelSelector: "app=contestant-pod",
+	})
+	if err != nil {
+		return fmt.Errorf("watch contestant pods: %w", err)
+	}
+	defer w.Stop()
+
+	for event := range w.ResultChan() {
+		if event.Type == watch.Error {
+			return fmt.Errorf("contestant pod watch error")
+		}
+		pod, ok := event.Object.(*corev1.Pod)
+		if !ok {
+			continue
+		}
+		if cid, crashes, ok := podCrashes(pod); ok {
+			tracker.Observe(pod.Name, cid, crashes)
+		}
+	}
+	return nil // channel closed (server timeout); caller re-establishes
+}
+
 // Teardown deletes the contestant pod. Not-found is treated as success.
 func (r *Runner) Teardown(ctx context.Context, podName string) error {
 	err := r.client.CoreV1().Pods(r.cfg.Namespace).Delete(ctx, podName, metav1.DeleteOptions{})

@@ -44,8 +44,10 @@ services:
     image: iicpc/sandbox-runner
     port: 9090
     protocol: TCP             # gRPC
+    httpPort: 8090            # HTTP: /healthz + /crashes (per-contestant crash counts)
     env:
       - { name: GRPC_ADDR, value: ":9090" }
+      - { name: HTTP_ADDR, value: ":8090" }
       - { name: K8S_NAMESPACE, value: "iicpc-contestants" }
 
   bot-coordinator:
@@ -91,10 +93,11 @@ services:
     port: 8086
     expose: true              # public WS + /leaderboard
     env:
-      - { name: HTTP_ADDR,        value: ":8086" }
-      - { name: STORE_KIND,       value: "redis" }
-      - { name: AGGREGATOR_URL,   value: "http://aggregator:8084" }
-      - { name: VALIDATOR_URL,    value: "http://validator:8085" }
+      - { name: HTTP_ADDR,          value: ":8086" }
+      - { name: STORE_KIND,         value: "redis" }
+      - { name: AGGREGATOR_URL,     value: "http://aggregator:8084" }
+      - { name: VALIDATOR_URL,      value: "http://validator:8085" }
+      - { name: SANDBOX_RUNNER_URL, value: "http://sandbox-runner:8090" }
 
   web:
     image: iicpc/web

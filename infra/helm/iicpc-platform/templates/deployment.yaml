@@ -44,6 +44,11 @@ spec:
             - name: app
               containerPort: {{ $svc.port }}
               protocol: {{ default "TCP" $svc.protocol }}
+            {{- if $svc.httpPort }}
+            - name: http
+              containerPort: {{ $svc.httpPort }}
+              protocol: TCP
+            {{- end }}
           {{- with $svc.env }}
           env:
             {{- range . }}

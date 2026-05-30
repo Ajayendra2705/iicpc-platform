@@ -15,5 +15,11 @@ spec:
       port: {{ $svc.port }}
       targetPort: app
       protocol: {{ default "TCP" $svc.protocol }}
+    {{- if $svc.httpPort }}
+    - name: http
+      port: {{ $svc.httpPort }}
+      targetPort: http
+      protocol: TCP
+    {{- end }}
 {{- end }}
 {{- end }}
