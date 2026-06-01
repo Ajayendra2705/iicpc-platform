@@ -111,11 +111,26 @@ demonstrated:
   MSK Serverless, S3, and ECR are all fully specified (`infra/terraform/`).
 - **Configured per environment.** Dev and production value overlays render to
   schema-clean Kubernetes YAML, kubeconform-checked at K8s 1.30 in CI.
-- **Actually deploys + scales on real Kubernetes.** The full chart was installed
-  on a **4-node cluster** and scaled **6→12 replicas spread across worker nodes**
-  — captured in `docs/artifacts/kind-multinode/`. This exercises the identical
-  API, scheduler, NetworkPolicy, taint/toleration, and HPA mechanics a cloud
-  cluster uses.
+- **Actually deploys + scales on real Kubernetes — one command, reproducible.**
+  `./scripts/kind-scale-demo.ps1` builds the real `leaderboard-svc` image, loads
+  it into a 4-node kind cluster, deploys it, and scales **3 → 9 replicas**. Latest
+  run spread the 9 replicas **evenly across all 3 worker nodes (3/3/3)** via
+  `topologySpreadConstraints` — proving real multi-node horizontal scale-out, not
+  a screenshot:
+
+  ```
+  ==> Stage 5: per-node distribution
+  iicpc-worker   3 pods
+  iicpc-worker2  3 pods
+  iicpc-worker3  3 pods
+      PASS: 9 replicas spread across 3 worker nodes
+  ```
+
+  This exercises the identical scheduler, taint/toleration, topology-spread and
+  `kubectl scale` mechanics a cloud cluster uses. Evidence (regenerated per run,
+  gitignored): `docs/artifacts/kind-multinode/{nodes,pods-3,pods-9,distribution}.txt`.
+  A single representative service is used so the demo is fast; the full 8-service
+  chart's scalability is lint/template-checked in CI (`helm-lint`).
 - **One command from EKS.** `docs/EKS_STAGING_RUNBOOK.md` is the turnkey recipe —
   `terraform apply` → build/push images → `helm upgrade --install` → smoke test —
   and ADR-0001 records the cloud-target rationale (EKS, RDS, ElastiCache, MSK).
@@ -162,10 +177,11 @@ kubectl scale deploy/leaderboard-svc --replicas=12 -n iicpc
 kubectl get pods -n iicpc -l app.kubernetes.io/name=leaderboard-svc -o wide -w
 ```
 
-This exact scale-out was exercised on a live 4-node kind cluster — see
-`docs/artifacts/kind-multinode/` (6→12 replicas spread across worker nodes).
-The bot fleet scales the same way, but as Job `parallelism` rather than a
-Deployment replica count.
+This exact scale-out is exercised on a live 4-node kind cluster by
+`./scripts/kind-scale-demo.ps1` — latest run scaled `leaderboard-svc`
+**3 → 9 replicas, evenly spread 3/3/3 across the worker nodes**
+(`docs/artifacts/kind-multinode/`). The bot fleet scales the same way, but as
+Job `parallelism` rather than a Deployment replica count.
 
 ---
 
