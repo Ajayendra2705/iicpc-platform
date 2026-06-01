@@ -111,9 +111,15 @@ func TestTickMissingValidatorAssumesCorrect(t *testing.T) {
 }
 
 func TestHTTPFetcherSnapshots(t *testing.T) {
-	agg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	// Aggregator now serves the whole-run merged snapshot at /metrics/merged;
+	// the fetcher must hit that path and map avg_tps → TPS.
+	agg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/metrics/merged" {
+			http.Error(w, "wrong path "+r.URL.Path, http.StatusNotFound)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]ingest.AggSnapshot{{ContestantID: "x", P99Ns: 999}})
+		_, _ = io.WriteString(w, `[{"contestant_id":"x","count":42,"timeouts":1,"avg_tps":1234.5,"p99_ns":999}]`)
 	}))
 	defer agg.Close()
 	val := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -132,6 +138,9 @@ func TestHTTPFetcherSnapshots(t *testing.T) {
 	snaps, err := f.Snapshots(context.Background())
 	if err != nil || len(snaps) != 1 || snaps[0].ContestantID != "x" {
 		t.Fatalf("Snapshots: snaps=%+v err=%v", snaps, err)
+	}
+	if snaps[0].TPS != 1234.5 || snaps[0].P99Ns != 999 || snaps[0].Timeouts != 1 {
+		t.Fatalf("merged fields not mapped: %+v", snaps[0])
 	}
 	reps, err := f.Reports(context.Background())
 	if err != nil || len(reps) != 1 || reps[0].Correctness != 0.9 {

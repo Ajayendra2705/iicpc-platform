@@ -47,6 +47,17 @@ penalty = timeouts·1000 + crashes·10 000 = 0
 final   = 713  ✓
 ```
 
+> **Scoring input — whole-run, not last-window.** The aggregator row above is
+> the single most-recent 1-second window (`GET /metrics`), shown for
+> readability. The leaderboard now scores on `GET /metrics/merged` — every
+> retained window's HDR histogram merged bucket-by-bucket — so `latency_norm`
+> and `tps_norm` reflect the contestant's **entire run**, not one window. The
+> composite is dominated here by `latency_norm` (~0.98) and `correctness`
+> (~0.996), with `tps_norm` a small term either way on a single-laptop run, so
+> the merged composite lands in the same ~710 band; the merge matters most when
+> a run has uneven windows (a fast burst followed by a slow tail). The merge
+> path itself is unit-tested in `aggregator/internal/windowing`.
+
 Raw captures (gitignored, regenerated per run): `docs/artifacts/e2e-pipeline/`
 — `aggregator-metrics.json`, `validator-reports.json`, `leaderboard.json`,
 `bot-worker-metrics.json`.

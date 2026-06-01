@@ -45,7 +45,7 @@ a reviewer's time:
   for **kubelet CPU-Manager core pinning** + strict memory limits.
 - **Horizontal scale, demonstrated.** Deployed on a **4-node Kubernetes cluster**
   and scaled 6→12 replicas across worker nodes (see `docs/artifacts/kind-multinode/`).
-- **Engineered to ship.** 10 microservices, ~175 unit + integration tests, and a
+- **Engineered to ship.** 10 microservices, **250+ unit + integration tests**, and a
   **green CI matrix** (race tests, golangci-lint, buf, terraform validate, helm +
   kubeconform, hadolint, image build) on every push.
 

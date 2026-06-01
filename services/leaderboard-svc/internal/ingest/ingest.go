@@ -127,10 +127,38 @@ func NewHTTPFetcher(aggURL, valURL, sandboxURL string) *HTTPFetcher {
 	}
 }
 
+// mergedRow mirrors the aggregator's MergedSnapshot JSON (GET /metrics/merged).
+// We score on the whole-run merged histogram — exact bucket-merged percentiles
+// and cumulative TPS — rather than the last 1-second window, so a contestant's
+// rank reflects its entire run, not one jittery window.
+type mergedRow struct {
+	ContestantID string  `json:"contestant_id"`
+	Count        int64   `json:"count"`
+	Rejected     int64   `json:"rejected"`
+	Timeouts     int64   `json:"timeouts"`
+	AvgTPS       float64 `json:"avg_tps"`
+	P50Ns        int64   `json:"p50_ns"`
+	P90Ns        int64   `json:"p90_ns"`
+	P99Ns        int64   `json:"p99_ns"`
+}
+
 func (f *HTTPFetcher) Snapshots(ctx context.Context) ([]AggSnapshot, error) {
-	var out []AggSnapshot
-	if err := f.getJSON(ctx, f.AggregatorURL+"/metrics", &out); err != nil {
+	var rows []mergedRow
+	if err := f.getJSON(ctx, f.AggregatorURL+"/metrics/merged", &rows); err != nil {
 		return nil, err
+	}
+	out := make([]AggSnapshot, len(rows))
+	for i, r := range rows {
+		out[i] = AggSnapshot{
+			ContestantID: r.ContestantID,
+			Count:        r.Count,
+			Rejected:     r.Rejected,
+			Timeouts:     r.Timeouts,
+			TPS:          r.AvgTPS,
+			P50Ns:        r.P50Ns,
+			P90Ns:        r.P90Ns,
+			P99Ns:        r.P99Ns,
+		}
 	}
 	return out, nil
 }

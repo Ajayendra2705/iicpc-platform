@@ -94,3 +94,27 @@ func TestGetMergedMetricNotFound(t *testing.T) {
 		t.Errorf("got %d want 404", w.Code)
 	}
 }
+
+// TestGetMergedAll covers the all-contestants merged endpoint the leaderboard
+// scores on. It must route ahead of /metrics/{contestant_id} and return one
+// merged row per contestant with whole-run percentiles.
+func TestGetMergedAll(t *testing.T) {
+	_, h := setup()
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/metrics/merged", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("merged all: got %d", w.Code)
+	}
+	var ms []windowing.MergedSnapshot
+	if err := json.NewDecoder(w.Body).Decode(&ms); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(ms) != 2 {
+		t.Fatalf("merged all: got %d rows, want 2", len(ms))
+	}
+	for _, m := range ms {
+		if m.WindowCount < 1 || m.P99Ns <= 0 {
+			t.Errorf("merged row not populated: %+v", m)
+		}
+	}
+}

@@ -65,7 +65,7 @@ flowchart LR
     Kafka --> Validator
 
     Aggregator -- pgx CopyFrom --> Timescale
-    Aggregator -- GET /metrics --> Leaderboard
+    Aggregator -- GET /metrics/merged (whole-run) --> Leaderboard
     Validator -- GET /validate --> Leaderboard
 
     Leaderboard -- ZADD --> Redis
@@ -133,7 +133,7 @@ sequenceDiagram
         K->>A: consume batch
         A->>A: HDR record + window
         Note over A: every 1s: Flush()<br/>=> Snapshot{P50/P90/P99/TPS}
-        A-->>L: poll /metrics
+        A-->>L: poll /metrics/merged<br/>(whole-run, bucket-merged percentiles)
     and
         K->>V: consume batch
         V->>V: replay through ref book
@@ -165,6 +165,14 @@ where:
 ```
 
 Weights, caps, and penalty values are configurable per `score.Config`. Zero-value `Config` falls back to defaults — caller-friendly one-line API.
+
+**Scoring inputs are whole-run, not last-window.** The leaderboard pulls the
+aggregator's `GET /metrics/merged` endpoint, which merges every retained 1-second
+window's HDR histogram **bucket-by-bucket** before reading P50/P90/P99 (averaging
+per-window percentiles is statistically wrong — see `windowing/merge.go`). So
+`latency_norm` reflects a contestant's tail latency over its **entire run**, and
+`tps_norm` uses cumulative throughput, not one jittery window. The per-window
+`GET /metrics/{id}` view is retained for the live UI charts.
 
 11 unit tests cover perfect-input top score, individual norm flooring, crash + timeout penalty math, never-negative clamp, out-of-range correctness clamp.
 

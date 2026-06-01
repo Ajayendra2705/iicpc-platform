@@ -88,6 +88,67 @@ func TestMergedRecentRespectsWindowsArg(t *testing.T) {
 	}
 }
 
+// TestAllMergedScoresWholeRunNotLastWindow is the regression test for the
+// scoring fix: the leaderboard must rank on the whole-run merged histogram,
+// not the most recent 1-second window. A contestant that was fast for one
+// window then slow for the next must surface its true (slow) tail latency.
+func TestAllMergedReturnsWholeRunPerContestant(t *testing.T) {
+	a := windowing.New(time.Second)
+
+	// c1: window of fast (1ms) then window of slow (100ms).
+	for range 500 {
+		a.Record(&telemetryv1.OrderEvent{ContestantId: "c1", LatencyNs: 1_000_000})
+	}
+	a.Flush(time.Now())
+	for range 500 {
+		a.Record(&telemetryv1.OrderEvent{ContestantId: "c1", LatencyNs: 100_000_000})
+	}
+	a.Flush(time.Now())
+
+	// c2: single steady window.
+	for range 300 {
+		a.Record(&telemetryv1.OrderEvent{ContestantId: "c2", LatencyNs: 5_000_000})
+	}
+	a.Flush(time.Now())
+
+	rows := a.AllMerged(0) // 0 → entire retained history
+	if len(rows) != 2 {
+		t.Fatalf("AllMerged: got %d rows, want 2", len(rows))
+	}
+
+	byID := map[string]windowing.MergedSnapshot{}
+	for _, m := range rows {
+		byID[m.ContestantID] = m
+	}
+
+	c1 := byID["c1"]
+	if c1.TotalCount != 1000 {
+		t.Errorf("c1 TotalCount: got %d want 1000 (both windows merged)", c1.TotalCount)
+	}
+	// Whole-run P99 must reflect the slow window (~100ms), not just the last
+	// window's own P99 — but more importantly it merges both windows' data.
+	if c1.P99Ns < 90_000_000 {
+		t.Errorf("c1 merged P99: got %d ns, expected ~100ms from the merged run", c1.P99Ns)
+	}
+	if c1.WindowCount != 2 {
+		t.Errorf("c1 WindowCount: got %d want 2", c1.WindowCount)
+	}
+
+	c2 := byID["c2"]
+	if c2.TotalCount != 300 || c2.WindowCount != 1 {
+		t.Errorf("c2 merged: count=%d windows=%d, want 300/1", c2.TotalCount, c2.WindowCount)
+	}
+}
+
+func TestAllMergedEmptyBeforeAnyFlush(t *testing.T) {
+	a := windowing.New(time.Second)
+	a.Record(&telemetryv1.OrderEvent{ContestantId: "c1", LatencyNs: 1_000_000})
+	// No Flush yet → nothing in history → no merged rows.
+	if rows := a.AllMerged(0); len(rows) != 0 {
+		t.Errorf("AllMerged before flush: got %d rows, want 0", len(rows))
+	}
+}
+
 func TestMergedRecentNotFound(t *testing.T) {
 	a := windowing.New(time.Second)
 	if _, ok := a.MergedRecent("nobody", 60); ok {

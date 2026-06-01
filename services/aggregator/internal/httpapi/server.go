@@ -21,6 +21,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /metrics", s.handleAll)
+	mux.HandleFunc("GET /metrics/merged", s.handleMergedAll)
 	mux.HandleFunc("GET /metrics/{contestant_id}", s.handleOne)
 	mux.HandleFunc("GET /metrics/merged/{contestant_id}", s.handleMerged)
 	return mux
@@ -44,6 +45,21 @@ func (s *Server) handleOne(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(snap)
+}
+
+// handleMergedAll returns the whole-run merged snapshot for every contestant.
+// ?windows=N bounds the merge to the last N windows; default 0 merges all
+// retained history. This is the endpoint the leaderboard scores on so rankings
+// reflect a contestant's full run, not the most recent 1-second window.
+func (s *Server) handleMergedAll(w http.ResponseWriter, r *http.Request) {
+	windows := 0 // 0 → entire retained history
+	if v := r.URL.Query().Get("windows"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			windows = n
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(s.agg.AllMerged(windows))
 }
 
 // handleMerged returns percentiles correctly merged over the last N windows

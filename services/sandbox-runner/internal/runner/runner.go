@@ -48,6 +48,13 @@ func New(cfg Config) (*Runner, error) {
 	return &Runner{client: kc, cfg: cfg}, nil
 }
 
+// NewWithClient builds a Runner around a caller-supplied Kubernetes client.
+// Used by tests (with a fake clientset) and by callers that already hold a
+// client; it bypasses in-cluster/kubeconfig discovery.
+func NewWithClient(client kubernetes.Interface, cfg Config) *Runner {
+	return &Runner{client: client, cfg: cfg}
+}
+
 func buildClient() (kubernetes.Interface, error) {
 	rc, err := rest.InClusterConfig()
 	if err == nil {

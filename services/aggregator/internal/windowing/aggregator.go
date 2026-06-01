@@ -232,6 +232,30 @@ func (a *Aggregator) MergedRecent(contestantID string, windows int) (MergedSnaps
 	}, true
 }
 
+// AllMerged returns the whole-history merged snapshot for every contestant
+// that has at least one flushed window. windows<=0 merges the entire retained
+// history (up to historyCap); a positive value bounds it to the last N windows.
+// Percentiles are exact bucket-by-bucket merges, never averages of per-window
+// percentiles — this is the snapshot the leaderboard scores on, so a
+// contestant is ranked by its whole-run tail latency, not one jittery window.
+func (a *Aggregator) AllMerged(windows int) []MergedSnapshot {
+	a.mu.Lock()
+	ids := make([]string, 0, len(a.history))
+	for id := range a.history {
+		ids = append(ids, id)
+	}
+	a.mu.Unlock()
+
+	out := make([]MergedSnapshot, 0, len(ids))
+	for _, id := range ids {
+		// MergedRecent takes the lock itself; call it outside our critical section.
+		if m, ok := a.MergedRecent(id, windows); ok {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
 // Latest returns the most recently flushed snapshot for the contestant.
 func (a *Aggregator) Latest(contestantID string) (Snapshot, bool) {
 	a.mu.Lock()
