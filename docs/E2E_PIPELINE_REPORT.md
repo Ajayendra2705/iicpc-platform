@@ -62,6 +62,30 @@ Raw captures (gitignored, regenerated per run): `docs/artifacts/e2e-pipeline/`
 — `aggregator-metrics.json`, `validator-reports.json`, `leaderboard.json`,
 `bot-worker-metrics.json`.
 
+## Real-store run — Redis ZSET + TimescaleDB (run 2026-06-01)
+
+The run above uses an in-memory store/writer so the proof needs only Redpanda.
+To prove the **production data-store paths** as well, `e2e-pipeline.ps1
+-RealStores` brings up real Redis + TimescaleDB (local containers, no cloud
+cost), auto-applies the telemetry schema, and routes the leaderboard ZSET
+through Redis and the aggregator snapshots through TimescaleDB. A fresh 30 s
+run (25 workers, REST, scoring via the merged whole-run endpoint):
+
+| Source | Measured |
+| ------ | -------- |
+| Leaderboard `/leaderboard` | **team-live = 684** (merged whole-run scoring) |
+| **Redis** `ZREVRANGE leaderboard:scores` | `team-live → 684` — score lives in the real ZSET |
+| **TimescaleDB** `telemetry_snapshots` | **38 windows**, **17 622 orders** persisted, max p99 20.1 ms |
+| Validator `/validate` | total_checked **10 224**, mismatches 232, correctness **0.9773** |
+
+This closes the in-memory caveat: the leaderboard score is read back out of a
+real Redis sorted set, and the per-window snapshots are durably written to a
+real TimescaleDB hypertable via `pgx.CopyFrom`. Evidence captured to
+`docs/artifacts/e2e-pipeline/redis-zset.txt` and `timescale-snapshots.txt`
+(gitignored; regenerate with `-RealStores`). The only path still exercised
+only in cloud is multi-node EKS scale-out — covered by
+[IAC_VERIFICATION.md](IAC_VERIFICATION.md) on a 4-node cluster.
+
 ## Why this matters
 
 This is the first **live** end-to-end run of the real scoring chain, and it

@@ -15,13 +15,19 @@
 # fills/side/timeouts feeding correctness + stability). Evidence is captured to
 # docs/artifacts/e2e-pipeline/.
 #
-# Only external dependency is Redpanda (Kafka API) via docker-compose; the
-# aggregator uses an in-memory writer and leaderboard an in-memory store, so no
-# Postgres/Redis needed for the proof.
+# By default the only external dependency is Redpanda (Kafka API) via
+# docker-compose; the aggregator uses an in-memory writer and leaderboard an
+# in-memory store, so no Postgres/Redis needed for the lightweight proof.
+#
+# Pass -RealStores to additionally bring up real Redis + TimescaleDB and route
+# the leaderboard ZSET through Redis and the aggregator snapshots through
+# TimescaleDB (schema auto-applied). This proves the production data-store
+# paths end-to-end, not just the in-memory ones. All local, no cloud cost.
 param(
-    [int]$DurationS = 30,
-    [int]$Workers   = 25,
-    [int]$RPS       = 20
+    [int]$DurationS    = 30,
+    [int]$Workers      = 25,
+    [int]$RPS          = 20,
+    [switch]$RealStores
 )
 
 $ErrorActionPreference = "Stop"
@@ -53,12 +59,45 @@ function Stop-All {
     Write-Host "[e2e] tearing down services..."
     foreach ($s in $script:procs) { try { Stop-Process -Id $s.Proc.Id -Force -ErrorAction SilentlyContinue } catch {} }
 }
+# Docker writes progress to stderr; under $ErrorActionPreference='Stop' that
+# stderr is wrapped as a terminating NativeCommandError (PS 5.1). Run the docker
+# invocation (passed as a scriptblock, so its -flags aren't parsed by PowerShell)
+# with stderr demoted to normal output, and fail only on a real non-zero exit.
+function Invoke-Docker {
+    param([Parameter(Mandatory = $true)][scriptblock] $Cmd)
+    $ErrorActionPreference = 'Continue'  # function-scoped; reverts on return
+    $out = & $Cmd 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "docker command failed ($LASTEXITCODE): $out" }
+    return $out
+}
 
 try {
-    # 1. Redpanda (Kafka API) only.
-    Write-Host "[e2e] starting Redpanda..."
-    docker compose up -d redpanda | Out-Null
-    Start-Sleep -Seconds 6
+    # 1. Infra: Redpanda always; Redis + TimescaleDB when -RealStores.
+    if ($RealStores) {
+        Write-Host "[e2e] starting Redpanda + Redis + TimescaleDB..."
+        Invoke-Docker { docker compose up -d redpanda redis postgres } | Out-Null
+        Start-Sleep -Seconds 6
+        # Wait for Postgres, then apply the telemetry schema (idempotent).
+        Write-Host "[e2e] waiting for TimescaleDB..."
+        $pgDeadline = (Get-Date).AddSeconds(40)
+        $pgReady = $false
+        while ((Get-Date) -lt $pgDeadline) {
+            $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            & docker.exe compose exec -T postgres pg_isready -U iicpc -d iicpc 2>&1 | Out-Null
+            $ok = ($LASTEXITCODE -eq 0); $ErrorActionPreference = $eap
+            if ($ok) { $pgReady = $true; break }
+            Start-Sleep -Milliseconds 600
+        }
+        if (-not $pgReady) { throw "TimescaleDB did not become ready" }
+        Write-Host "[e2e] applying telemetry schema..."
+        $sql = Join-Path $root "infra\timescaledb\migrations\001_telemetry_schema.sql"
+        Invoke-Docker { docker compose cp $sql postgres:/tmp/schema.sql } | Out-Null
+        Invoke-Docker { docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U iicpc -d iicpc -f /tmp/schema.sql } | Out-Null
+    } else {
+        Write-Host "[e2e] starting Redpanda..."
+        Invoke-Docker { docker compose up -d redpanda } | Out-Null
+        Start-Sleep -Seconds 6
+    }
 
     # 2. Build the binaries.
     Write-Host "[e2e] building binaries..."
@@ -69,11 +108,19 @@ try {
     }
 
     # 3. Start services (order: sink -> bus consumers -> contestant).
+    # Store wiring: in-memory by default, real Redis + TimescaleDB with -RealStores.
+    $aggWriter = @{ WRITER_KIND = "stub" }
+    $lbStore   = @{ STORE_KIND  = "stub" }
+    if ($RealStores) {
+        $aggWriter = @{ WRITER_KIND = "timescale"; POSTGRES_DSN = "postgres://iicpc:iicpc@localhost:5432/iicpc?sslmode=disable" }
+        $lbStore   = @{ STORE_KIND  = "redis"; REDIS_ADDR = "localhost:6379"; REDIS_KEY = "leaderboard:scores" }
+    }
+
     Start-Svc "reference-orderbook" (Join-Path $bin "reference-orderbook.exe") @{ RUNTIME_PORT = "9100" }
     Start-Svc "telemetry-ingester" (Join-Path $bin "telemetry-ingester.exe") @{ GRPC_ADDR=":9091"; PRODUCER_KIND="kafka"; KAFKA_BROKERS="localhost:9092"; KAFKA_TOPIC="telemetry-events" }
-    Start-Svc "aggregator" (Join-Path $bin "aggregator.exe") @{ HTTP_ADDR=":8084"; CONSUMER_KIND="kafka"; KAFKA_BROKERS="localhost:9092"; KAFKA_TOPIC="telemetry-events"; KAFKA_GROUP_ID="aggregator"; WRITER_KIND="stub"; WINDOW_MS="1000" }
+    Start-Svc "aggregator" (Join-Path $bin "aggregator.exe") (@{ HTTP_ADDR=":8084"; CONSUMER_KIND="kafka"; KAFKA_BROKERS="localhost:9092"; KAFKA_TOPIC="telemetry-events"; KAFKA_GROUP_ID="aggregator"; WINDOW_MS="1000" } + $aggWriter)
     Start-Svc "validator" (Join-Path $bin "validator.exe") @{ HTTP_ADDR=":8085"; CONSUMER_KIND="kafka"; KAFKA_BROKERS="localhost:9092"; KAFKA_TOPIC="telemetry-events"; KAFKA_GROUP_ID="validator" }
-    Start-Svc "leaderboard-svc" (Join-Path $bin "leaderboard-svc.exe") @{ HTTP_ADDR=":8086"; STORE_KIND="stub"; AGGREGATOR_URL="http://127.0.0.1:8084"; VALIDATOR_URL="http://127.0.0.1:8085"; TICK_MS="1000" }
+    Start-Svc "leaderboard-svc" (Join-Path $bin "leaderboard-svc.exe") (@{ HTTP_ADDR=":8086"; AGGREGATOR_URL="http://127.0.0.1:8084"; VALIDATOR_URL="http://127.0.0.1:8085"; TICK_MS="1000" } + $lbStore)
 
     Wait-Http "http://127.0.0.1:9100/health" 20 "reference-orderbook"
     Wait-Http "http://127.0.0.1:8084/healthz" 20 "aggregator"
@@ -104,6 +151,19 @@ try {
     Invoke-RestMethod "http://127.0.0.1:8084/metrics" | Format-Table contestant_id, count, tps, p50_ns, p99_ns, rejected, timeouts -AutoSize
     Write-Host "=== VALIDATOR /validate ===" -ForegroundColor Cyan
     Invoke-RestMethod "http://127.0.0.1:8085/validate" | Format-Table -AutoSize
+
+    if ($RealStores) {
+        # Prove the real data-store paths: the Redis ZSET holds the live score,
+        # and TimescaleDB holds the per-window snapshot rows.
+        Write-Host "=== REDIS ZSET (leaderboard:scores) ===" -ForegroundColor Cyan
+        $redisOut = Invoke-Docker { docker compose exec -T redis redis-cli ZREVRANGE leaderboard:scores 0 -1 WITHSCORES }
+        $redisOut | Tee-Object (Join-Path $ev "redis-zset.txt") | Write-Host
+
+        Write-Host "=== TIMESCALEDB telemetry_snapshots ===" -ForegroundColor Cyan
+        $tsQuery = "SELECT contestant_id, count(*) AS windows, sum(count) AS total_orders, max(p99_ns) AS max_p99_ns FROM telemetry_snapshots GROUP BY contestant_id;"
+        $tsOut = Invoke-Docker { docker compose exec -T postgres psql -U iicpc -d iicpc -c $tsQuery }
+        $tsOut | Tee-Object (Join-Path $ev "timescale-snapshots.txt") | Write-Host
+    }
 }
 finally {
     Stop-All
