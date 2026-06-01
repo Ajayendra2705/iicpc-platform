@@ -51,7 +51,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 ARG SERVICE
 LABEL org.opencontainers.image.title="iicpc/${SERVICE}"
 LABEL org.opencontainers.image.source="https://github.com/Ajayendra2705/iicpc-platform"
-LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.licenses="LicenseRef-Proprietary"
 
 COPY --from=build /out/app /app
 USER 65532:65532
