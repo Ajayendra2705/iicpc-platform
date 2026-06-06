@@ -3,9 +3,9 @@
 package main
 
 import (
+	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"archive/tar"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -27,7 +27,7 @@ import (
 
 // spySandbox records every Start call for assertions.
 type spySandbox struct {
-	mu   sync.Mutex
+	mu    sync.Mutex
 	calls []sandboxCall
 }
 

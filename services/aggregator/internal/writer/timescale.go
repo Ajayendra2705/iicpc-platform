@@ -34,7 +34,7 @@ func NewTimescaleFromDSN(ctx context.Context, dsn string) (*Timescale, error) {
 }
 
 var snapshotColumns = []string{
-	"contestant_id", "window_start", "duration_ns",
+	"contestant_id", "submission_id", "window_start", "duration_ns",
 	"count", "rejected", "timeouts", "tps",
 	"p50_ns", "p90_ns", "p99_ns", "p999_ns",
 }
@@ -46,7 +46,7 @@ func (w *Timescale) WriteSnapshots(ctx context.Context, snaps []windowing.Snapsh
 	rows := make([][]any, 0, len(snaps))
 	for _, s := range snaps {
 		rows = append(rows, []any{
-			s.ContestantID, s.WindowStart, s.Duration.Nanoseconds(),
+			s.ContestantID, s.SubmissionID, s.WindowStart, s.Duration.Nanoseconds(),
 			s.Count, s.Rejected, s.Timeouts, s.TPS,
 			s.P50Ns, s.P90Ns, s.P99Ns, s.P999Ns,
 		})

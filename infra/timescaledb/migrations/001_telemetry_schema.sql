@@ -10,10 +10,14 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 -- ----------------------------------------------------------------------------
 -- Raw 1-second window snapshots emitted by the aggregator on every Flush().
--- One row per (contestant_id, window_start).
+-- One row per (contestant_id, submission_id, window_start). submission_id
+-- identifies the attempt; it is '' for legacy single-run telemetry that
+-- carries no submission. Including it in the key keeps a contestant's distinct
+-- attempts as distinct rows so per-submission analytics stay exact.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS telemetry_snapshots (
     contestant_id TEXT             NOT NULL,
+    submission_id TEXT             NOT NULL DEFAULT '',
     window_start  TIMESTAMPTZ      NOT NULL,
     duration_ns   BIGINT           NOT NULL,
     count         BIGINT           NOT NULL,
@@ -24,7 +28,7 @@ CREATE TABLE IF NOT EXISTS telemetry_snapshots (
     p90_ns        BIGINT           NOT NULL,
     p99_ns        BIGINT           NOT NULL,
     p999_ns       BIGINT           NOT NULL,
-    PRIMARY KEY (contestant_id, window_start)
+    PRIMARY KEY (contestant_id, submission_id, window_start)
 );
 
 SELECT create_hypertable(
@@ -35,7 +39,7 @@ SELECT create_hypertable(
 );
 
 CREATE INDEX IF NOT EXISTS idx_telemetry_snapshots_contestant_time
-    ON telemetry_snapshots (contestant_id, window_start DESC);
+    ON telemetry_snapshots (contestant_id, submission_id, window_start DESC);
 
 -- ----------------------------------------------------------------------------
 -- 1-minute continuous aggregate. Powers leaderboard time-series queries.
@@ -63,6 +67,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS telemetry_1m
 WITH (timescaledb.continuous) AS
 SELECT
     contestant_id,
+    submission_id,
     time_bucket('1 minute', window_start) AS bucket,
     SUM(count)        AS total_count,
     SUM(rejected)     AS total_rejected,
@@ -73,7 +78,7 @@ SELECT
     MAX(p99_ns)       AS max_p99_ns,
     MAX(p999_ns)      AS max_p999_ns
 FROM telemetry_snapshots
-GROUP BY contestant_id, bucket
+GROUP BY contestant_id, submission_id, bucket
 WITH NO DATA;
 
 -- Refresh every 30s, materialising buckets that closed ≥ 30s ago.

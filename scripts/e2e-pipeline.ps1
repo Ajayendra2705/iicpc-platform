@@ -130,7 +130,7 @@ try {
 
     # 4. Run the bot fleet against the contestant for DurationS.
     Write-Host "[e2e] running bot fleet: $Workers workers x $RPS rps for ${DurationS}s against team-live..."
-    Start-Svc "bot-worker" (Join-Path $bin "bot-worker.exe") @{ HTTP_ADDR=":9090"; TARGET_URL="http://127.0.0.1:9100"; NUM_WORKERS="$Workers"; ORDERS_PER_SECOND="$RPS"; PROTOCOL="rest"; ARRIVAL_MODE="poisson"; TELEMETRY_ADDR="127.0.0.1:9091"; CONTESTANT_ID="team-live" }
+    Start-Svc "bot-worker" (Join-Path $bin "bot-worker.exe") @{ HTTP_ADDR=":9090"; TARGET_URL="http://127.0.0.1:9100"; NUM_WORKERS="$Workers"; ORDERS_PER_SECOND="$RPS"; PROTOCOL="rest"; ARRIVAL_MODE="poisson"; TELEMETRY_ADDR="127.0.0.1:9091"; CONTESTANT_ID="team-live"; SUBMISSION_ID="sub-live-1" }
     Start-Sleep -Seconds $DurationS
     # capture the bot's own stats while it is still alive, then stop it.
     try { (Invoke-RestMethod "http://127.0.0.1:9090/metrics" | ConvertTo-Json -Depth 6) | Out-File (Join-Path $ev "bot-worker-metrics.json") -Encoding utf8 } catch {}

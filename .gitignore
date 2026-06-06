@@ -69,6 +69,7 @@ redis-data/
 *.pdf
 IDEATION_IMPLEMENTATION_PIPELINE.md
 ProblemStatement.txt
+STUDY_PLAN.md
 
 # Claude session/skill data
 .claude/
