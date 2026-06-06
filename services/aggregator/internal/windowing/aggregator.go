@@ -20,9 +20,10 @@ const (
 	defaultWindowSize       = time.Second
 )
 
-// Snapshot is the rolled-up state of one window for one contestant.
+// Snapshot is the rolled-up state of one window for one submission run.
 type Snapshot struct {
 	ContestantID string        `json:"contestant_id"`
+	SubmissionID string        `json:"submission_id,omitempty"`
 	WindowStart  time.Time     `json:"window_start"`
 	Duration     time.Duration `json:"duration_ns"`
 	Count        int64         `json:"count"`
@@ -40,24 +41,42 @@ type Snapshot struct {
 // rolling-window TPS chart in the UI.
 const DefaultHistoryWindows = 60
 
-// Aggregator maintains an open window per contestant and rolls them on Flush.
+// Aggregator maintains an open window per run and rolls them on Flush. A "run"
+// is keyed by submission_id when present, so each submission (attempt) is
+// scored in isolation — a contestant's re-submission never blends into the
+// previous attempt's histogram. Legacy events with no submission_id fall back
+// to keying by contestant_id, preserving the original single-run behaviour.
 type Aggregator struct {
 	mu         sync.Mutex
 	window     time.Duration
 	historyCap int
 	open       map[string]*windowState
 	latest     map[string]Snapshot
-	history    map[string][]*flushed // ring buffer per contestant; tail is newest
+	history    map[string][]*flushed // ring buffer per run key; tail is newest
 	startAt    time.Time
 	now        func() time.Time
 }
 
 type windowState struct {
-	start    time.Time
-	hist     *hdrhistogram.Histogram
-	count    int64
-	rejected int64
-	timeouts int64
+	contestantID string
+	submissionID string
+	start        time.Time
+	hist         *hdrhistogram.Histogram
+	count        int64
+	rejected     int64
+	timeouts     int64
+}
+
+// runKey returns the map key for an event and the identity tags it carries.
+// Keying prefers submission_id (per-attempt isolation) and falls back to
+// contestant_id for legacy callers that don't set a submission.
+func runKey(e *telemetryv1.OrderEvent) (key, contestant, submission string) {
+	contestant = e.GetContestantId()
+	submission = e.GetSubmissionId()
+	if submission != "" {
+		return submission, contestant, submission
+	}
+	return contestant, contestant, submission
 }
 
 // flushed pairs a Snapshot with the histogram so MergedRange can recompute
@@ -102,22 +121,25 @@ func New(window time.Duration, opts ...Option) *Aggregator {
 	return a
 }
 
-// Record adds an OrderEvent to the open window for its contestant. Safe to
-// call from any goroutine.
+// Record adds an OrderEvent to the open window for its run (submission, or
+// contestant when no submission is set). Safe to call from any goroutine.
 func (a *Aggregator) Record(e *telemetryv1.OrderEvent) {
 	if e == nil || e.GetContestantId() == "" {
 		return
 	}
+	key, contestant, submission := runKey(e)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	ws, ok := a.open[e.GetContestantId()]
+	ws, ok := a.open[key]
 	if !ok {
 		ws = &windowState{
-			start: a.now(),
-			hist:  hdrhistogram.New(defaultMinLatNs, defaultMaxLatNs, defaultSigDigits),
+			contestantID: contestant,
+			submissionID: submission,
+			start:        a.now(),
+			hist:         hdrhistogram.New(defaultMinLatNs, defaultMaxLatNs, defaultSigDigits),
 		}
-		a.open[e.GetContestantId()] = ws
+		a.open[key] = ws
 	}
 
 	if lat := e.GetLatencyNs(); lat > 0 {
@@ -143,7 +165,7 @@ func (a *Aggregator) Flush(now time.Time) []Snapshot {
 		return nil
 	}
 	out := make([]Snapshot, 0, len(a.open))
-	for id, ws := range a.open {
+	for key, ws := range a.open {
 		dur := now.Sub(ws.start)
 		if dur <= 0 {
 			dur = a.window
@@ -153,7 +175,8 @@ func (a *Aggregator) Flush(now time.Time) []Snapshot {
 			tps = float64(ws.count) / secs
 		}
 		snap := Snapshot{
-			ContestantID: id,
+			ContestantID: ws.contestantID,
+			SubmissionID: ws.submissionID,
 			WindowStart:  ws.start,
 			Duration:     dur,
 			Count:        ws.count,
@@ -166,15 +189,15 @@ func (a *Aggregator) Flush(now time.Time) []Snapshot {
 			P999Ns:       ws.hist.ValueAtQuantile(99.9),
 		}
 		out = append(out, snap)
-		a.latest[id] = snap
+		a.latest[key] = snap
 		// Keep the histogram alongside the snapshot in the ring so MergedRecent
 		// can recompute exact percentiles over a multi-window range.
-		ring := a.history[id]
+		ring := a.history[key]
 		ring = append(ring, &flushed{snap: snap, hist: ws.hist})
 		if len(ring) > a.historyCap {
 			ring = ring[len(ring)-a.historyCap:]
 		}
-		a.history[id] = ring
+		a.history[key] = ring
 	}
 	// reset open windows
 	a.open = make(map[string]*windowState)
@@ -182,15 +205,16 @@ func (a *Aggregator) Flush(now time.Time) []Snapshot {
 }
 
 // MergedRecent returns a percentile cut over the last N flushed windows for
-// the contestant. Histograms are merged bucket-by-bucket so the result is
-// exact — NOT an average of per-window percentiles (which would be wrong).
-// If fewer than N windows are available, merges whatever's there. Returns
-// false if no windows have been flushed yet for this contestant.
-func (a *Aggregator) MergedRecent(contestantID string, windows int) (MergedSnapshot, bool) {
+// the run keyed by key (a submission_id, or a contestant_id for legacy runs).
+// Histograms are merged bucket-by-bucket so the result is exact — NOT an
+// average of per-window percentiles (which would be wrong). If fewer than N
+// windows are available, merges whatever's there. Returns false if no windows
+// have been flushed yet for this key.
+func (a *Aggregator) MergedRecent(key string, windows int) (MergedSnapshot, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	ring, ok := a.history[contestantID]
+	ring, ok := a.history[key]
 	if !ok || len(ring) == 0 {
 		return MergedSnapshot{}, false
 	}
@@ -217,8 +241,12 @@ func (a *Aggregator) MergedRecent(contestantID string, windows int) (MergedSnaps
 	if s := totalDur.Seconds(); s > 0 {
 		avgTPS = float64(totalCount) / s
 	}
+	// Every window in a ring shares the same run key, hence the same identity
+	// tags; read them off the newest flushed snapshot.
+	newest := slice[len(slice)-1].snap
 	return MergedSnapshot{
-		ContestantID:  contestantID,
+		ContestantID:  newest.ContestantID,
+		SubmissionID:  newest.SubmissionID,
 		WindowCount:   len(slice),
 		Duration:      totalDur,
 		TotalCount:    totalCount,

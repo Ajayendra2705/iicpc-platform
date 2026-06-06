@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -44,6 +45,35 @@ func (r *Redis) Ping(ctx context.Context) error {
 func (r *Redis) Upsert(ctx context.Context, id string, score int64) error {
 	if err := r.client.ZAdd(ctx, r.key, redis.Z{Score: float64(score), Member: id}).Err(); err != nil {
 		return fmt.Errorf("zadd %s=%d: %w", id, score, err)
+	}
+	return nil
+}
+
+// UpsertSubmission records one submission's score in a per-contestant hash and
+// sets the contestant's ZSET score to the max across their submissions, so the
+// leaderboard ranks each contestant by their best attempt. The HSET→HVALS→ZADD
+// sequence is non-atomic but is only driven by the single-goroutine ingester,
+// so concurrent interleaving for the same contestant does not occur.
+func (r *Redis) UpsertSubmission(ctx context.Context, contestantID, submissionID string, score int64) error {
+	if submissionID == "" {
+		submissionID = "default"
+	}
+	subsKey := r.key + ":subs:" + contestantID
+	if err := r.client.HSet(ctx, subsKey, submissionID, score).Err(); err != nil {
+		return fmt.Errorf("hset %s %s=%d: %w", subsKey, submissionID, score, err)
+	}
+	vals, err := r.client.HVals(ctx, subsKey).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return fmt.Errorf("hvals %s: %w", subsKey, err)
+	}
+	best := score
+	for _, v := range vals {
+		if n, perr := strconv.ParseInt(v, 10, 64); perr == nil && n > best {
+			best = n
+		}
+	}
+	if err := r.client.ZAdd(ctx, r.key, redis.Z{Score: float64(best), Member: contestantID}).Err(); err != nil {
+		return fmt.Errorf("zadd best %s=%d: %w", contestantID, best, err)
 	}
 	return nil
 }

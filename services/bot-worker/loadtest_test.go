@@ -62,7 +62,7 @@ func TestLoadConcurrentWorkers(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			g := gen.New(gen.Config{MidPrice: 100, PriceSigma: 1, CancelRatio: 0.5})
-			runWorker(ctx, id, cli, g, rec, arrivals, telemetry.NewStub(), "test", "bot-test", log)
+			runWorker(ctx, id, cli, g, rec, arrivals, telemetry.NewStub(), "test", "sub-test", "bot-test", log)
 		}(i)
 	}
 	wg.Wait()
@@ -114,7 +114,7 @@ func TestLoadBurstMode(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			g := gen.New(gen.Config{MidPrice: 100, PriceSigma: 1, CancelRatio: 0.3})
-			runWorker(ctx, id, cli, g, rec, arrivals, telemetry.NewStub(), "test", "bot-test", log)
+			runWorker(ctx, id, cli, g, rec, arrivals, telemetry.NewStub(), "test", "sub-test", "bot-test", log)
 		}(i)
 	}
 	wg.Wait()

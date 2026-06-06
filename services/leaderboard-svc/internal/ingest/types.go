@@ -5,6 +5,7 @@ package ingest
 // aggregator module.
 type AggSnapshot struct {
 	ContestantID string  `json:"contestant_id"`
+	SubmissionID string  `json:"submission_id"`
 	Count        int64   `json:"count"`
 	Rejected     int64   `json:"rejected"`
 	Timeouts     int64   `json:"timeouts"`

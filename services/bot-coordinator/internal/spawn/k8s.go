@@ -95,6 +95,11 @@ func (s *K8sSpawner) buildJob(benchmarkID string, spec BenchmarkSpec) *batchv1.J
 		{Name: "PROTOCOL", Value: spec.Protocol},
 		{Name: "ARRIVAL_MODE", Value: spec.ArrivalMode},
 		{Name: "NUM_WORKERS", Value: "1"},
+		// Identity tags stamped onto every telemetry OrderEvent. SUBMISSION_ID
+		// makes the aggregator score this attempt in isolation; CONTESTANT_ID
+		// maps the submission back to its owner for best-of leaderboard ranking.
+		{Name: "CONTESTANT_ID", Value: spec.ContestantID},
+		{Name: "SUBMISSION_ID", Value: spec.SubmissionID},
 	}
 	if spec.DurationSeconds > 0 {
 		env = append(env, corev1.EnvVar{

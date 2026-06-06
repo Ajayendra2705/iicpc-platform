@@ -140,6 +140,77 @@ func TestAllMergedReturnsWholeRunPerContestant(t *testing.T) {
 	}
 }
 
+// TestSubmissionsAreScoredInIsolation proves the re-submission fix: two
+// submissions from the SAME contestant must not blend into one histogram. A
+// fast first attempt and a slow second attempt yield two separate merged rows,
+// each carrying its own submission_id and its own (un-blended) percentiles.
+func TestSubmissionsAreScoredInIsolation(t *testing.T) {
+	a := windowing.New(time.Second)
+
+	// Attempt sub-1: fast (~1ms).
+	for range 500 {
+		a.Record(&telemetryv1.OrderEvent{ContestantId: "c1", SubmissionId: "sub-1", LatencyNs: 1_000_000})
+	}
+	a.Flush(time.Now())
+	// Attempt sub-2 by the SAME contestant: slow (~100ms).
+	for range 500 {
+		a.Record(&telemetryv1.OrderEvent{ContestantId: "c1", SubmissionId: "sub-2", LatencyNs: 100_000_000})
+	}
+	a.Flush(time.Now())
+
+	rows := a.AllMerged(0)
+	if len(rows) != 2 {
+		t.Fatalf("AllMerged: got %d rows, want 2 (one per submission)", len(rows))
+	}
+	bySub := map[string]windowing.MergedSnapshot{}
+	for _, m := range rows {
+		if m.ContestantID != "c1" {
+			t.Errorf("submission %s: contestant=%q want c1", m.SubmissionID, m.ContestantID)
+		}
+		bySub[m.SubmissionID] = m
+	}
+
+	s1, ok1 := bySub["sub-1"]
+	s2, ok2 := bySub["sub-2"]
+	if !ok1 || !ok2 {
+		t.Fatalf("missing a submission row: got keys %v", bySub)
+	}
+	// Each attempt keeps its own count — no blending into 1000.
+	if s1.TotalCount != 500 || s2.TotalCount != 500 {
+		t.Errorf("counts blended: sub-1=%d sub-2=%d, want 500/500", s1.TotalCount, s2.TotalCount)
+	}
+	// The fast attempt's P99 stays fast; the slow attempt's stays slow. If they
+	// had blended, sub-1's P99 would be dragged toward 100ms.
+	if s1.P99Ns > 5_000_000 {
+		t.Errorf("sub-1 P99=%d ns; expected ~1ms (blended with slow attempt?)", s1.P99Ns)
+	}
+	if s2.P99Ns < 90_000_000 {
+		t.Errorf("sub-2 P99=%d ns; expected ~100ms", s2.P99Ns)
+	}
+}
+
+// TestLegacyEventsKeyByContestant confirms back-compat: events with no
+// submission_id still bucket by contestant_id exactly as before.
+func TestLegacyEventsKeyByContestant(t *testing.T) {
+	a := windowing.New(time.Second)
+	for range 200 {
+		a.Record(&telemetryv1.OrderEvent{ContestantId: "legacy", LatencyNs: 2_000_000})
+	}
+	a.Flush(time.Now())
+
+	rows := a.AllMerged(0)
+	if len(rows) != 1 {
+		t.Fatalf("AllMerged: got %d rows, want 1", len(rows))
+	}
+	if rows[0].ContestantID != "legacy" || rows[0].SubmissionID != "" {
+		t.Errorf("legacy keying: contestant=%q submission=%q, want legacy/empty",
+			rows[0].ContestantID, rows[0].SubmissionID)
+	}
+	if rows[0].TotalCount != 200 {
+		t.Errorf("legacy count: got %d want 200", rows[0].TotalCount)
+	}
+}
+
 func TestAllMergedEmptyBeforeAnyFlush(t *testing.T) {
 	a := windowing.New(time.Second)
 	a.Record(&telemetryv1.OrderEvent{ContestantId: "c1", LatencyNs: 1_000_000})

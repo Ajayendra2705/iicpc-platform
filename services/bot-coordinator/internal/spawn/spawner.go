@@ -5,6 +5,7 @@ import "context"
 // BenchmarkSpec describes a load benchmark run.
 type BenchmarkSpec struct {
 	SubmissionID    string  `json:"submission_id"`
+	ContestantID    string  `json:"contestant_id"`
 	TargetURL       string  `json:"target_url"`
 	NumWorkers      int     `json:"num_workers"`
 	OrdersPerSecond float64 `json:"orders_per_second"`

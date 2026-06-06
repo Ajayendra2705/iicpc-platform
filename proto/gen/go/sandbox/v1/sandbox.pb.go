@@ -440,8 +440,8 @@ const file_sandbox_v1_sandbox_proto_rawDesc = "" +
 	"\n" +
 	"RunSandbox\x12\x1d.sandbox.v1.RunSandboxRequest\x1a\x1e.sandbox.v1.RunSandboxResponse\x12N\n" +
 	"\vStopSandbox\x12\x1e.sandbox.v1.StopSandboxRequest\x1a\x1f.sandbox.v1.StopSandboxResponse\x12]\n" +
-	"\x10GetSandboxStatus\x12#.sandbox.v1.GetSandboxStatusRequest\x1a$.sandbox.v1.GetSandboxStatusResponseB\xa4\x01\n" +
-	"\x0ecom.sandbox.v1B\fSandboxProtoP\x01Z;github.com/iicpc/platform/proto/gen/go/sandbox/v1;sandboxv1\xa2\x02\x03SXX\xaa\x02\n" +
+	"\x10GetSandboxStatus\x12#.sandbox.v1.GetSandboxStatusRequest\x1a$.sandbox.v1.GetSandboxStatusResponseB\xb2\x01\n" +
+	"\x0ecom.sandbox.v1B\fSandboxProtoP\x01ZIgithub.com/Ajayendra2705/iicpc-platform/proto/gen/go/sandbox/v1;sandboxv1\xa2\x02\x03SXX\xaa\x02\n" +
 	"Sandbox.V1\xca\x02\n" +
 	"Sandbox\\V1\xe2\x02\x16Sandbox\\V1\\GPBMetadata\xea\x02\vSandbox::V1b\x06proto3"
 

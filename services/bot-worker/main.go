@@ -47,6 +47,7 @@ type config struct {
 	telemetryAddr   string // telemetry-ingester gRPC address (empty = disabled)
 	telemetryBuffer int    // telemetry client queue size
 	contestantID    string // contestant_id tag on emitted events
+	submissionID    string // submission_id tag on emitted events (this attempt's run)
 	botProfile      string // PS-mandated diverse trader archetype: market_maker | aggressive_taker | retail | noise
 }
 
@@ -74,6 +75,7 @@ func loadConfig() config {
 		telemetryAddr:   envOr("TELEMETRY_ADDR", ""),
 		telemetryBuffer: envInt("TELEMETRY_BUFFER", 1024),
 		contestantID:    envOr("CONTESTANT_ID", "unknown"),
+		submissionID:    envOr("SUBMISSION_ID", ""),
 		botProfile:      resolveProfile(),
 	}
 }
@@ -161,7 +163,7 @@ func main() {
 				return
 			}
 			defer cli.Close()
-			runWorker(ctx, id, cli, gen.New(genCfg), rec, arrivals, tele, cfg.contestantID, cfg.workerID, logger)
+			runWorker(ctx, id, cli, gen.New(genCfg), rec, arrivals, tele, cfg.contestantID, cfg.submissionID, cfg.workerID, logger)
 		}(i)
 	}
 
@@ -250,7 +252,7 @@ func runWorker(
 	rec *stats.Recorder,
 	arrivals *gen.Arrivals,
 	tele telemetry.Client,
-	contestantID, botID string,
+	contestantID, submissionID, botID string,
 	log *slog.Logger,
 ) {
 	timer := time.NewTimer(arrivals.Next())
@@ -276,7 +278,7 @@ func runWorker(
 				case err == nil:
 					rec.RecordLatency(latNs)
 					tele.Emit(&telemetryv1.OrderEvent{
-						ContestantId: contestantID, BotId: botID, OrderId: pick,
+						ContestantId: contestantID, SubmissionId: submissionID, BotId: botID, OrderId: pick,
 						Type:     telemetryv1.OrderType_ORDER_TYPE_CANCEL,
 						Result:   telemetryv1.OrderResult_ORDER_RESULT_ACK_ONLY,
 						SentTsNs: start.UnixNano(), AckTsNs: start.Add(time.Duration(latNs)).UnixNano(),
@@ -288,7 +290,7 @@ func runWorker(
 					rec.RecordError()
 					log.Warn("cancel failed", "order_id", pick, "err", err)
 					tele.Emit(&telemetryv1.OrderEvent{
-						ContestantId: contestantID, BotId: botID, OrderId: pick,
+						ContestantId: contestantID, SubmissionId: submissionID, BotId: botID, OrderId: pick,
 						Type:     telemetryv1.OrderType_ORDER_TYPE_CANCEL,
 						Result:   resultForErr(err),
 						SentTsNs: start.UnixNano(),
@@ -335,7 +337,7 @@ func runWorker(
 					}
 				}
 				tele.Emit(&telemetryv1.OrderEvent{
-					ContestantId: contestantID, BotId: botID, OrderId: res.ID,
+					ContestantId: contestantID, SubmissionId: submissionID, BotId: botID, OrderId: res.ID,
 					Type:     teleType,
 					Side:     teleSide,
 					Result:   result,
@@ -349,7 +351,7 @@ func runWorker(
 				rec.RecordError()
 				log.Warn("place failed", "kind", ord.Kind, "err", err)
 				tele.Emit(&telemetryv1.OrderEvent{
-					ContestantId: contestantID, BotId: botID,
+					ContestantId: contestantID, SubmissionId: submissionID, BotId: botID,
 					Type:     teleType,
 					Side:     teleSide,
 					Result:   resultForErr(err),

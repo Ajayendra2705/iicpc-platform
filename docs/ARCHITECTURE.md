@@ -88,7 +88,7 @@ All inter-service code uses Go modules in `services/<name>/`. Cross-service cont
 | `telemetry/v1/telemetry.proto` | `IngestStream(stream OrderEvent)` + `QueryMetrics` |
 | `leaderboard/v1/leaderboard.proto` | ranked queries, score submission, live update stream |
 
-`OrderEvent` is the cornerstone message — every bot order produces one, with `trace_id`, `contestant_id`, `bot_id`, `order_id`, `type`, `result` enum, `sent_ts_ns`, `ack_ts_ns`, `latency_ns`, `price`, `quantity`, `filled_quantity`.
+`OrderEvent` is the cornerstone message — every bot order produces one, with `trace_id`, `contestant_id`, `submission_id`, `bot_id`, `order_id`, `type`, `result` enum, `sent_ts_ns`, `ack_ts_ns`, `latency_ns`, `price`, `quantity`, `filled_quantity`. `submission_id` lets the aggregator score each attempt in isolation so the leaderboard can rank a contestant by their best submission.
 
 ---
 
@@ -170,11 +170,25 @@ Weights, caps, and penalty values are configurable per `score.Config`. Zero-valu
 aggregator's `GET /metrics/merged` endpoint, which merges every retained 1-second
 window's HDR histogram **bucket-by-bucket** before reading P50/P90/P99 (averaging
 per-window percentiles is statistically wrong — see `windowing/merge.go`). So
-`latency_norm` reflects a contestant's tail latency over its **entire run**, and
+`latency_norm` reflects a run's tail latency over its **entire run**, and
 `tps_norm` uses cumulative throughput, not one jittery window. The per-window
 `GET /metrics/{id}` view is retained for the live UI charts.
 
-11 unit tests cover perfect-input top score, individual norm flooring, crash + timeout penalty math, never-negative clamp, out-of-range correctness clamp.
+**Each submission is scored in isolation; a contestant ranks on their best.**
+Every `OrderEvent` carries a `submission_id` (stamped by the bot-worker from the
+benchmark spec). The aggregator buckets by `submission_id`, so a contestant's
+re-submission starts a **fresh** histogram instead of blending into the previous
+attempt's data. The leaderboard scores every submission and keeps the **maximum
+per contestant** in the ZSET (`store.UpsertSubmission` → per-submission hash +
+`ZADD` of the best). A later, worse attempt therefore never lowers a contestant
+below an earlier, better one — matching the iterate-freely convention of
+Codeforces / Kaggle / ICPC. Legacy events with no `submission_id` fall back to
+keying by `contestant_id`, preserving the original single-run behaviour.
+
+Unit tests cover perfect-input top score, individual norm flooring, crash +
+timeout penalty math, never-negative clamp, out-of-range correctness clamp,
+per-submission **isolation** (`windowing` no-blend test), and **best-of**
+ranking end-to-end (`store` + `ingest` tests).
 
 ---
 

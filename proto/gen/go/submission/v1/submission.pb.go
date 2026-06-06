@@ -702,8 +702,8 @@ const file_submission_v1_submission_proto_rawDesc = "" +
 	"\x10CreateSubmission\x12&.submission.v1.CreateSubmissionRequest\x1a'.submission.v1.CreateSubmissionResponse\x12O\n" +
 	"\rGetSubmission\x12#.submission.v1.GetSubmissionRequest\x1a\x19.submission.v1.Submission\x12`\n" +
 	"\x0fListSubmissions\x12%.submission.v1.ListSubmissionsRequest\x1a&.submission.v1.ListSubmissionsResponse\x12X\n" +
-	"\x0fStreamBuildLogs\x12%.submission.v1.StreamBuildLogsRequest\x1a\x1c.submission.v1.BuildLogChunk0\x01B\xbc\x01\n" +
-	"\x11com.submission.v1B\x0fSubmissionProtoP\x01ZAgithub.com/iicpc/platform/proto/gen/go/submission/v1;submissionv1\xa2\x02\x03SXX\xaa\x02\rSubmission.V1\xca\x02\rSubmission\\V1\xe2\x02\x19Submission\\V1\\GPBMetadata\xea\x02\x0eSubmission::V1b\x06proto3"
+	"\x0fStreamBuildLogs\x12%.submission.v1.StreamBuildLogsRequest\x1a\x1c.submission.v1.BuildLogChunk0\x01B\xca\x01\n" +
+	"\x11com.submission.v1B\x0fSubmissionProtoP\x01ZOgithub.com/Ajayendra2705/iicpc-platform/proto/gen/go/submission/v1;submissionv1\xa2\x02\x03SXX\xaa\x02\rSubmission.V1\xca\x02\rSubmission\\V1\xe2\x02\x19Submission\\V1\\GPBMetadata\xea\x02\x0eSubmission::V1b\x06proto3"
 
 var (
 	file_submission_v1_submission_proto_rawDescOnce sync.Once

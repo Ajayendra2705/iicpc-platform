@@ -40,6 +40,12 @@ message OrderEvent {
   string trace_id = 1;
   string contestant_id = 2;
   string bot_id = 3;
+  // submission_id identifies which submission (attempt) this run belongs to.
+  // The aggregator buckets by submission_id so each attempt is scored in
+  // isolation; the leaderboard then ranks a contestant by their best
+  // submission. Empty for legacy single-run callers (falls back to
+  // contestant_id keying). Field 15 keeps the original 1..14 layout stable.
+  string submission_id = 15;
   string order_id = 4;
   OrderType type = 5;
   OrderResult result = 6;

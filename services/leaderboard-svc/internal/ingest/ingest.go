@@ -80,6 +80,12 @@ func (i *Ingester) Tick(ctx context.Context) error {
 		}
 	}
 
+	// Each snapshot is one submission's whole-run merged metrics. We score every
+	// submission and let the store keep the contestant's best across attempts.
+	// Correctness/crash data is still keyed by contestant (the validator and
+	// sandbox-runner don't yet report per submission), so the contestant-level
+	// value is applied to each of their submissions — exact in the common case
+	// of one active submission at a time.
 	for _, s := range snaps {
 		corr, ok := correctness[s.ContestantID]
 		if !ok {
@@ -92,8 +98,8 @@ func (i *Ingester) Tick(ctx context.Context) error {
 			Crashes:     crashes[s.ContestantID],
 			Timeouts:    s.Timeouts,
 		})
-		if err := i.Store.Upsert(ctx, s.ContestantID, r.FinalScore); err != nil {
-			i.Log.Warn("store upsert", "id", s.ContestantID, "err", err)
+		if err := i.Store.UpsertSubmission(ctx, s.ContestantID, s.SubmissionID, r.FinalScore); err != nil {
+			i.Log.Warn("store upsert submission", "contestant", s.ContestantID, "submission", s.SubmissionID, "err", err)
 			continue
 		}
 	}
@@ -133,6 +139,7 @@ func NewHTTPFetcher(aggURL, valURL, sandboxURL string) *HTTPFetcher {
 // rank reflects its entire run, not one jittery window.
 type mergedRow struct {
 	ContestantID string  `json:"contestant_id"`
+	SubmissionID string  `json:"submission_id"`
 	Count        int64   `json:"count"`
 	Rejected     int64   `json:"rejected"`
 	Timeouts     int64   `json:"timeouts"`
@@ -151,6 +158,7 @@ func (f *HTTPFetcher) Snapshots(ctx context.Context) ([]AggSnapshot, error) {
 	for i, r := range rows {
 		out[i] = AggSnapshot{
 			ContestantID: r.ContestantID,
+			SubmissionID: r.SubmissionID,
 			Count:        r.Count,
 			Rejected:     r.Rejected,
 			Timeouts:     r.Timeouts,

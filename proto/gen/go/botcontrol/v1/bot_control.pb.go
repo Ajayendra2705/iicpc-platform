@@ -595,8 +595,8 @@ const file_botcontrol_v1_bot_control_proto_rawDesc = "" +
 	"\x0eBotCoordinator\x12Z\n" +
 	"\rStartLoadTest\x12#.botcontrol.v1.StartLoadTestRequest\x1a$.botcontrol.v1.StartLoadTestResponse\x12W\n" +
 	"\fStopLoadTest\x12\".botcontrol.v1.StopLoadTestRequest\x1a#.botcontrol.v1.StopLoadTestResponse\x12[\n" +
-	"\x11GetLoadTestStatus\x12'.botcontrol.v1.GetLoadTestStatusRequest\x1a\x1d.botcontrol.v1.LoadTestStatusB\xbc\x01\n" +
-	"\x11com.botcontrol.v1B\x0fBotControlProtoP\x01ZAgithub.com/iicpc/platform/proto/gen/go/botcontrol/v1;botcontrolv1\xa2\x02\x03BXX\xaa\x02\rBotcontrol.V1\xca\x02\rBotcontrol\\V1\xe2\x02\x19Botcontrol\\V1\\GPBMetadata\xea\x02\x0eBotcontrol::V1b\x06proto3"
+	"\x11GetLoadTestStatus\x12'.botcontrol.v1.GetLoadTestStatusRequest\x1a\x1d.botcontrol.v1.LoadTestStatusB\xca\x01\n" +
+	"\x11com.botcontrol.v1B\x0fBotControlProtoP\x01ZOgithub.com/Ajayendra2705/iicpc-platform/proto/gen/go/botcontrol/v1;botcontrolv1\xa2\x02\x03BXX\xaa\x02\rBotcontrol.V1\xca\x02\rBotcontrol\\V1\xe2\x02\x19Botcontrol\\V1\\GPBMetadata\xea\x02\x0eBotcontrol::V1b\x06proto3"
 
 var (
 	file_botcontrol_v1_bot_control_proto_rawDescOnce sync.Once

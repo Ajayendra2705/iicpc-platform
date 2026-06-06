@@ -183,21 +183,27 @@ func (OrderSide) EnumDescriptor() ([]byte, []int) {
 }
 
 type OrderEvent struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	TraceId        string                 `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
-	ContestantId   string                 `protobuf:"bytes,2,opt,name=contestant_id,json=contestantId,proto3" json:"contestant_id,omitempty"`
-	BotId          string                 `protobuf:"bytes,3,opt,name=bot_id,json=botId,proto3" json:"bot_id,omitempty"`
-	OrderId        string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	Type           OrderType              `protobuf:"varint,5,opt,name=type,proto3,enum=telemetry.v1.OrderType" json:"type,omitempty"`
-	Result         OrderResult            `protobuf:"varint,6,opt,name=result,proto3,enum=telemetry.v1.OrderResult" json:"result,omitempty"`
-	SentTsNs       int64                  `protobuf:"varint,7,opt,name=sent_ts_ns,json=sentTsNs,proto3" json:"sent_ts_ns,omitempty"`  // bot monotonic clock at send
-	AckTsNs        int64                  `protobuf:"varint,8,opt,name=ack_ts_ns,json=ackTsNs,proto3" json:"ack_ts_ns,omitempty"`     // bot monotonic clock at ack
-	LatencyNs      int64                  `protobuf:"varint,9,opt,name=latency_ns,json=latencyNs,proto3" json:"latency_ns,omitempty"` // ack_ts_ns - sent_ts_ns
-	Price          float64                `protobuf:"fixed64,10,opt,name=price,proto3" json:"price,omitempty"`
-	Quantity       int64                  `protobuf:"varint,11,opt,name=quantity,proto3" json:"quantity,omitempty"`
-	FilledQuantity int64                  `protobuf:"varint,12,opt,name=filled_quantity,json=filledQuantity,proto3" json:"filled_quantity,omitempty"`
-	RejectReason   string                 `protobuf:"bytes,13,opt,name=reject_reason,json=rejectReason,proto3" json:"reject_reason,omitempty"`
-	Side           OrderSide              `protobuf:"varint,14,opt,name=side,proto3,enum=telemetry.v1.OrderSide" json:"side,omitempty"` // buy/sell direction, for price-time-priority replay
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	TraceId      string                 `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	ContestantId string                 `protobuf:"bytes,2,opt,name=contestant_id,json=contestantId,proto3" json:"contestant_id,omitempty"`
+	BotId        string                 `protobuf:"bytes,3,opt,name=bot_id,json=botId,proto3" json:"bot_id,omitempty"`
+	// submission_id identifies which submission (attempt) this run belongs to.
+	// The aggregator buckets by submission_id so each attempt is scored in
+	// isolation; the leaderboard then ranks a contestant by their best
+	// submission. Empty for legacy single-run callers (falls back to
+	// contestant_id keying). Field 15 keeps the original 1..14 layout stable.
+	SubmissionId   string      `protobuf:"bytes,15,opt,name=submission_id,json=submissionId,proto3" json:"submission_id,omitempty"`
+	OrderId        string      `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	Type           OrderType   `protobuf:"varint,5,opt,name=type,proto3,enum=telemetry.v1.OrderType" json:"type,omitempty"`
+	Result         OrderResult `protobuf:"varint,6,opt,name=result,proto3,enum=telemetry.v1.OrderResult" json:"result,omitempty"`
+	SentTsNs       int64       `protobuf:"varint,7,opt,name=sent_ts_ns,json=sentTsNs,proto3" json:"sent_ts_ns,omitempty"`  // bot monotonic clock at send
+	AckTsNs        int64       `protobuf:"varint,8,opt,name=ack_ts_ns,json=ackTsNs,proto3" json:"ack_ts_ns,omitempty"`     // bot monotonic clock at ack
+	LatencyNs      int64       `protobuf:"varint,9,opt,name=latency_ns,json=latencyNs,proto3" json:"latency_ns,omitempty"` // ack_ts_ns - sent_ts_ns
+	Price          float64     `protobuf:"fixed64,10,opt,name=price,proto3" json:"price,omitempty"`
+	Quantity       int64       `protobuf:"varint,11,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	FilledQuantity int64       `protobuf:"varint,12,opt,name=filled_quantity,json=filledQuantity,proto3" json:"filled_quantity,omitempty"`
+	RejectReason   string      `protobuf:"bytes,13,opt,name=reject_reason,json=rejectReason,proto3" json:"reject_reason,omitempty"`
+	Side           OrderSide   `protobuf:"varint,14,opt,name=side,proto3,enum=telemetry.v1.OrderSide" json:"side,omitempty"` // buy/sell direction, for price-time-priority replay
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -249,6 +255,13 @@ func (x *OrderEvent) GetContestantId() string {
 func (x *OrderEvent) GetBotId() string {
 	if x != nil {
 		return x.BotId
+	}
+	return ""
+}
+
+func (x *OrderEvent) GetSubmissionId() string {
+	if x != nil {
+		return x.SubmissionId
 	}
 	return ""
 }
@@ -598,12 +611,13 @@ var File_telemetry_v1_telemetry_proto protoreflect.FileDescriptor
 
 const file_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\n" +
-	"\x1ctelemetry/v1/telemetry.proto\x12\ftelemetry.v1\"\xe4\x03\n" +
+	"\x1ctelemetry/v1/telemetry.proto\x12\ftelemetry.v1\"\x89\x04\n" +
 	"\n" +
 	"OrderEvent\x12\x19\n" +
 	"\btrace_id\x18\x01 \x01(\tR\atraceId\x12#\n" +
 	"\rcontestant_id\x18\x02 \x01(\tR\fcontestantId\x12\x15\n" +
-	"\x06bot_id\x18\x03 \x01(\tR\x05botId\x12\x19\n" +
+	"\x06bot_id\x18\x03 \x01(\tR\x05botId\x12#\n" +
+	"\rsubmission_id\x18\x0f \x01(\tR\fsubmissionId\x12\x19\n" +
 	"\border_id\x18\x04 \x01(\tR\aorderId\x12+\n" +
 	"\x04type\x18\x05 \x01(\x0e2\x17.telemetry.v1.OrderTypeR\x04type\x121\n" +
 	"\x06result\x18\x06 \x01(\x0e2\x19.telemetry.v1.OrderResultR\x06result\x12\x1c\n" +

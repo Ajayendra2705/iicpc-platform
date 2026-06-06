@@ -527,8 +527,8 @@ const file_leaderboard_v1_leaderboard_proto_rawDesc = "" +
 	"\aGetTopN\x12\x1e.leaderboard.v1.GetTopNRequest\x1a\x1f.leaderboard.v1.GetTopNResponse\x12[\n" +
 	"\x12GetContestantScore\x12).leaderboard.v1.GetContestantScoreRequest\x1a\x1a.leaderboard.v1.ScoreEntry\x12T\n" +
 	"\rStreamUpdates\x12$.leaderboard.v1.StreamUpdatesRequest\x1a\x1b.leaderboard.v1.ScoreUpdate0\x01\x12V\n" +
-	"\vSubmitScore\x12\".leaderboard.v1.SubmitScoreRequest\x1a#.leaderboard.v1.SubmitScoreResponseB\xc4\x01\n" +
-	"\x12com.leaderboard.v1B\x10LeaderboardProtoP\x01ZCgithub.com/iicpc/platform/proto/gen/go/leaderboard/v1;leaderboardv1\xa2\x02\x03LXX\xaa\x02\x0eLeaderboard.V1\xca\x02\x0eLeaderboard\\V1\xe2\x02\x1aLeaderboard\\V1\\GPBMetadata\xea\x02\x0fLeaderboard::V1b\x06proto3"
+	"\vSubmitScore\x12\".leaderboard.v1.SubmitScoreRequest\x1a#.leaderboard.v1.SubmitScoreResponseB\xd2\x01\n" +
+	"\x12com.leaderboard.v1B\x10LeaderboardProtoP\x01ZQgithub.com/Ajayendra2705/iicpc-platform/proto/gen/go/leaderboard/v1;leaderboardv1\xa2\x02\x03LXX\xaa\x02\x0eLeaderboard.V1\xca\x02\x0eLeaderboard\\V1\xe2\x02\x1aLeaderboard\\V1\\GPBMetadata\xea\x02\x0fLeaderboard::V1b\x06proto3"
 
 var (
 	file_leaderboard_v1_leaderboard_proto_rawDescOnce sync.Once

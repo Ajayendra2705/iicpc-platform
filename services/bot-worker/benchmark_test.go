@@ -112,7 +112,7 @@ func TestPerfReport_5K(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			g := gen.New(gen.Config{MidPrice: 100, PriceSigma: 1, CancelRatio: 0.3})
-			runWorker(ctx, id, cli, g, rec, arrivals, telemetry.NewStub(), "perf", fmt.Sprintf("bot-%d", id), log)
+			runWorker(ctx, id, cli, g, rec, arrivals, telemetry.NewStub(), "perf", "sub-perf", fmt.Sprintf("bot-%d", id), log)
 		}(i)
 	}
 	wg.Wait()

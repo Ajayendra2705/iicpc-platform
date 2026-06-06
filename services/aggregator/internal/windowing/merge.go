@@ -17,6 +17,7 @@ import (
 // understate tail latency.
 type MergedSnapshot struct {
 	ContestantID  string        `json:"contestant_id"`
+	SubmissionID  string        `json:"submission_id,omitempty"`
 	WindowCount   int           `json:"window_count"`
 	Duration      time.Duration `json:"duration_ns"`
 	TotalCount    int64         `json:"count"`
