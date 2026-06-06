@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/build"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/buildlog"
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/sandbox"
 	httpsrv "github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/server"
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/storage"
@@ -61,7 +62,11 @@ func main() {
 		logger.Info("sandbox runner configured", "addr", cfg.sandboxRunnerAddr)
 	}
 
-	builder, builderRun := newBuilder(cfg, repo, objStore, logger, sandboxStarter)
+	// Bounded per-submission build-log buffer, shared by the builder (writer)
+	// and the HTTP server (reader) so the UI streams real build output.
+	logs := buildlog.NewBuffer(2000)
+
+	builder, builderRun := newBuilder(cfg, repo, objStore, logger, sandboxStarter, logs)
 
 	var workerWG sync.WaitGroup
 	workerWG.Add(1)
@@ -75,6 +80,7 @@ func main() {
 		Storage:         objStore,
 		Submissions:     repo,
 		Builder:         builder,
+		Logs:            logs,
 		Logger:          logger,
 		InternalToken:   cfg.internalToken,
 	})
@@ -138,7 +144,7 @@ func newRepo(cfg config, log *slog.Logger) (store.Repository, func(), error) {
 	}
 }
 
-func newBuilder(cfg config, repo store.Repository, objStore storage.ObjectStore, log *slog.Logger, sb build.SandboxStarter) (build.Builder, func(context.Context)) {
+func newBuilder(cfg config, repo store.Repository, objStore storage.ObjectStore, log *slog.Logger, sb build.SandboxStarter, logs *buildlog.Buffer) (build.Builder, func(context.Context)) {
 	switch strings.ToLower(cfg.builderKind) {
 	case "buildkit":
 		var scanner build.ImageScanner
@@ -159,6 +165,7 @@ func newBuilder(cfg config, repo store.Repository, objStore storage.ObjectStore,
 			BuildTimeout:    cfg.buildTimeout,
 			Scanner:         scanner,
 			Sandbox:         sb,
+			Logs:            logs,
 		})
 		return bk, bk.Run
 	case "stub", "":

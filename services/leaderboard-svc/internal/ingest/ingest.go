@@ -64,38 +64,67 @@ func (i *Ingester) Tick(ctx context.Context) error {
 		return fmt.Errorf("fetch reports: %w", err)
 	}
 
-	correctness := make(map[string]float64, len(reports))
+	// Correctness is matched to a submission when the validator scored per
+	// submission, falling back to the contestant-level value for legacy reports
+	// (or when a submission has no validator row yet).
+	corrBySubmission := make(map[string]float64)
+	corrByContestant := make(map[string]float64, len(reports))
 	for _, r := range reports {
-		correctness[r.ContestantID] = r.Correctness
+		if r.SubmissionID != "" {
+			corrBySubmission[r.SubmissionID] = r.Correctness
+		}
+		corrByContestant[r.ContestantID] = r.Correctness
 	}
 
 	// Crashes are optional — if the sandbox-runner crash source is unreachable
 	// or not configured, score with zero crashes rather than failing the tick.
-	crashes := make(map[string]int64)
+	// Keyed per submission with a contestant-level fallback, same as correctness.
+	crashBySubmission := make(map[string]int64)
+	crashByContestant := make(map[string]int64)
 	if crashReports, err := i.Fetcher.Crashes(ctx); err != nil {
 		i.Log.Warn("fetch crashes", "err", err)
 	} else {
 		for _, c := range crashReports {
-			crashes[c.ContestantID] = c.Crashes
+			if c.SubmissionID != "" {
+				crashBySubmission[c.SubmissionID] = c.Crashes
+			}
+			crashByContestant[c.ContestantID] += c.Crashes
 		}
 	}
 
 	// Each snapshot is one submission's whole-run merged metrics. We score every
-	// submission and let the store keep the contestant's best across attempts.
-	// Correctness/crash data is still keyed by contestant (the validator and
-	// sandbox-runner don't yet report per submission), so the contestant-level
-	// value is applied to each of their submissions — exact in the common case
-	// of one active submission at a time.
+	// submission with its OWN correctness and crash counts and let the store keep
+	// the contestant's best across attempts.
+	//
+	// Attribution is strict: a snapshot tagged with a submission_id is scored
+	// only from that submission's validator/crash rows. An attempt with no crash
+	// row genuinely had zero crashes — we must NOT fall back to the contestant's
+	// aggregate, or a clean attempt would inherit a sibling attempt's crash. The
+	// contestant-level maps are used only for legacy snapshots that carry no
+	// submission_id at all.
 	for _, s := range snaps {
-		corr, ok := correctness[s.ContestantID]
-		if !ok {
-			corr = 1.0 // no validator data yet — assume correct
+		var corr float64
+		var crashes int64
+		if s.SubmissionID != "" {
+			c, ok := corrBySubmission[s.SubmissionID]
+			if !ok {
+				c = 1.0 // no validator data for this attempt yet — assume correct
+			}
+			corr = c
+			crashes = crashBySubmission[s.SubmissionID] // absent => 0 (no crash)
+		} else {
+			c, ok := corrByContestant[s.ContestantID]
+			if !ok {
+				c = 1.0
+			}
+			corr = c
+			crashes = crashByContestant[s.ContestantID]
 		}
 		r := i.Calc.Compute(score.Inputs{
 			P99Ns:       s.P99Ns,
 			TPS:         s.TPS,
 			Correctness: corr,
-			Crashes:     crashes[s.ContestantID],
+			Crashes:     crashes,
 			Timeouts:    s.Timeouts,
 		})
 		if err := i.Store.UpsertSubmission(ctx, s.ContestantID, s.SubmissionID, r.FinalScore); err != nil {

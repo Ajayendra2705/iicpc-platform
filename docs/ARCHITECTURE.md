@@ -185,10 +185,18 @@ below an earlier, better one — matching the iterate-freely convention of
 Codeforces / Kaggle / ICPC. Legacy events with no `submission_id` fall back to
 keying by `contestant_id`, preserving the original single-run behaviour.
 
+Isolation is end-to-end, not just latency: the **validator** replays each
+submission against its own fresh reference orderbook (a re-submission never
+inherits the prior attempt's resting orders), and the **sandbox-runner** sums
+crashes per submission. The leaderboard attributes correctness and crash
+penalties to the specific submission that earned them, so a clean attempt is
+never dragged down by a sibling attempt's bug or crash.
+
 Unit tests cover perfect-input top score, individual norm flooring, crash +
 timeout penalty math, never-negative clamp, out-of-range correctness clamp,
-per-submission **isolation** (`windowing` no-blend test), and **best-of**
-ranking end-to-end (`store` + `ingest` tests).
+per-submission **isolation** (aggregator no-blend, validator fresh-book, crash
+per-submission), and **best-of** ranking end-to-end (`store` + `ingest`,
+including per-submission correctness/crash attribution).
 
 ---
 

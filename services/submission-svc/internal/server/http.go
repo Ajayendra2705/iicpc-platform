@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/build"
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/buildlog"
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/httpx"
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/storage"
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/store"
@@ -25,6 +26,7 @@ type Config struct {
 	Storage         storage.ObjectStore
 	Submissions     store.Repository
 	Builder         build.Builder
+	Logs            *buildlog.Buffer // nil -> build-log endpoint returns empty
 	Logger          *slog.Logger
 	InternalToken   string
 }
@@ -58,6 +60,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.healthz)
 	s.mux.HandleFunc("POST /submissions", s.createSubmission)
 	s.mux.HandleFunc("GET /submissions/{id}", s.getSubmission)
+	s.mux.HandleFunc("GET /submissions/{id}/logs", s.getSubmissionLogs)
 	s.mux.HandleFunc("GET /submissions", s.listSubmissions)
 }
 
@@ -160,6 +163,30 @@ func (s *Server) getSubmission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, sub)
+}
+
+// getSubmissionLogs returns captured build-log lines for a submission. Supports
+// incremental polling via ?since=<seq>: only lines with a greater sequence are
+// returned, along with the latest seq so the client can poll for more.
+func (s *Server) getSubmissionLogs(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, ok := s.cfg.Submissions.Get(id); !ok {
+		writeError(w, http.StatusNotFound, "submission not found")
+		return
+	}
+	var since int64
+	if v := r.URL.Query().Get("since"); v != "" {
+		since, _ = strconv.ParseInt(v, 10, 64)
+	}
+	var lines []buildlog.Line
+	var latest int64
+	if s.cfg.Logs != nil {
+		lines, latest = s.cfg.Logs.Since(id, since)
+	}
+	if lines == nil {
+		lines = []buildlog.Line{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"lines": lines, "latest": latest})
 }
 
 func (s *Server) listSubmissions(w http.ResponseWriter, r *http.Request) {

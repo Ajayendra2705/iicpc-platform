@@ -114,6 +114,47 @@ func TestTickRanksContestantByBestSubmission(t *testing.T) {
 	}
 }
 
+// TestTickAttributesCorrectnessAndCrashesPerSubmission proves a contestant's
+// two submissions are scored with their OWN correctness and crash counts, not a
+// blended contestant-wide value. s-clean (perfect, no crash) must outscore
+// s-buggy (low correctness + a crash) for the SAME contestant, and best-of then
+// ranks the contestant on s-clean.
+func TestTickAttributesCorrectnessAndCrashesPerSubmission(t *testing.T) {
+	f := &mockFetcher{
+		snaps: []ingest.AggSnapshot{
+			{ContestantID: "carol", SubmissionID: "s-clean", P99Ns: 1_000, TPS: 50_000},
+			{ContestantID: "carol", SubmissionID: "s-buggy", P99Ns: 1_000, TPS: 50_000},
+		},
+		reports: []ingest.ValReport{
+			{ContestantID: "carol", SubmissionID: "s-clean", Correctness: 1.0, TotalChecked: 100},
+			{ContestantID: "carol", SubmissionID: "s-buggy", Correctness: 0.2, TotalChecked: 100, Mismatches: 80},
+		},
+		crashes: []ingest.CrashReport{
+			{ContestantID: "carol", SubmissionID: "s-buggy", Crashes: 1},
+		},
+	}
+	ing, s, _ := newIngester(f)
+	if err := ing.Tick(context.Background()); err != nil {
+		t.Fatalf("Tick: %v", err)
+	}
+	top, _ := s.Top(context.Background(), 0)
+	if len(top) != 1 {
+		t.Fatalf("Top: got %d want 1 (best-of for carol)", len(top))
+	}
+	// carol's leaderboard score must equal the clean submission's score —
+	// proving the buggy attempt's low correctness + crash were applied only to
+	// s-buggy, and best-of kept s-clean.
+	clean := score.New(score.DefaultConfig()).Compute(score.Inputs{P99Ns: 1_000, TPS: 50_000, Correctness: 1.0})
+	if top[0].Score != clean.FinalScore {
+		t.Errorf("carol score=%d want %d (clean submission, per-submission attribution)", top[0].Score, clean.FinalScore)
+	}
+	// Sanity: the buggy submission with a crash floors to 0 (10k penalty), so if
+	// attribution had leaked contestant-wide, carol's best would NOT be clean.
+	if clean.FinalScore == 0 {
+		t.Fatal("test precondition: clean submission should score > 0")
+	}
+}
+
 func TestTickBroadcastsTopN(t *testing.T) {
 	f := &mockFetcher{
 		snaps:   []ingest.AggSnapshot{{ContestantID: "a", P99Ns: 1_000, TPS: 50_000}},

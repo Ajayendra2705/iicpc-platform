@@ -53,6 +53,11 @@ export function useSubmission() {
   });
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const syntheticTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Build-log streaming cursor: highest log sequence seen, and whether the
+  // backend has streamed any real build output (when it has, we stop emitting
+  // the synthetic per-stage narration so the two don't duplicate).
+  const lastSeqRef = useRef(0);
+  const gotRealLogsRef = useRef(false);
 
   const stopTimers = useCallback(() => {
     if (pollRef.current) {
@@ -71,14 +76,21 @@ export function useSubmission() {
     setState((s) => ({ ...s, logs: [...s.logs, { t: Date.now(), level, text }] }));
   }, []);
 
+  const resetLogCursor = useCallback(() => {
+    lastSeqRef.current = 0;
+    gotRealLogsRef.current = false;
+  }, []);
+
   const reset = useCallback(() => {
     stopTimers();
+    resetLogCursor();
     setState({ submission: null, logs: [], uploading: false, error: null, source: "idle" });
-  }, [stopTimers]);
+  }, [stopTimers, resetLogCursor]);
 
   const upload = useCallback(
     async (args: UploadArgs) => {
       stopTimers();
+      resetLogCursor();
       setState({
         submission: null,
         logs: [{ t: Date.now(), level: "info", text: `Uploading ${args.file.name} (${args.lang})…` }],
@@ -109,17 +121,49 @@ export function useSubmission() {
         startSynthetic(args);
       }
     },
-    [stopTimers],
+    // startLivePoll/startSynthetic close only over stable refs + setState, so
+    // they carry no stale state; omitting them from deps is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stopTimers, resetLogCursor],
   );
+
+  // mapLine converts a backend build-log line to the UI LogLine shape. Most
+  // docker output arrives on stderr (progress), which is not an error; only an
+  // explicit "Build failed" status line is surfaced as an error.
+  function mapLine(l: { stream: string; text: string; at_ms: number }): LogLine {
+    const level: LogLine["level"] =
+      l.stream === "status" && l.text.startsWith("Build failed") ? "error" : "info";
+    return { t: l.at_ms || Date.now(), level, text: l.text };
+  }
+
+  async function pollLogs(id: string) {
+    try {
+      const r = await fetch(`/api/submissions/${encodeURIComponent(id)}/logs?since=${lastSeqRef.current}`);
+      if (!r.ok) return;
+      const data: { lines?: { seq: number; stream: string; text: string; at_ms: number }[]; latest?: number } =
+        await r.json();
+      if (data.lines && data.lines.length > 0) {
+        gotRealLogsRef.current = true;
+        lastSeqRef.current = data.latest ?? lastSeqRef.current;
+        setState((s) => ({ ...s, logs: [...s.logs, ...data.lines!.map(mapLine)] }));
+      }
+    } catch {
+      // transient — the next tick retries
+    }
+  }
 
   function startLivePoll(id: string) {
     pollRef.current = setInterval(async () => {
+      // Pull real build-log lines first so the viewer reflects actual output.
+      await pollLogs(id);
       try {
         const r = await fetch(`/api/submissions/${encodeURIComponent(id)}`);
         if (!r.ok) return;
         const sub: Submission = await r.json();
         setState((s) => {
-          if (s.submission?.status !== sub.status) {
+          // Only narrate stage transitions synthetically when the backend has
+          // NOT streamed real build logs — otherwise the real lines stand alone.
+          if (s.submission?.status !== sub.status && !gotRealLogsRef.current) {
             const line = STAGE_LOGS[sub.status] ?? sub.status;
             return {
               ...s,
@@ -129,7 +173,10 @@ export function useSubmission() {
           }
           return { ...s, submission: sub };
         });
-        if (sub.status === "ready" || sub.status === "failed") stopTimers();
+        if (sub.status === "ready" || sub.status === "failed") {
+          await pollLogs(id); // final drain so trailing lines aren't missed
+          stopTimers();
+        }
       } catch {
         // transient — keep polling
       }

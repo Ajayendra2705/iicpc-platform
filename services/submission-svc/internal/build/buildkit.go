@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/buildlog"
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/storage"
 	"github.com/Ajayendra2705/iicpc-platform/services/submission-svc/internal/store"
 )
@@ -44,9 +45,11 @@ type BuildKit struct {
 	maxFileBytes    int64
 	scanner         ImageScanner
 	sandbox         SandboxStarter
+	logs            *buildlog.Buffer // nil -> build logs not captured
 
-	// runCmd is injectable so tests can stub out exec.Command.
-	runCmd func(ctx context.Context, log *slog.Logger, name string, args ...string) error
+	// runCmd is injectable so tests can stub out exec.Command. sink receives
+	// each subprocess output line (stream is "stdout"/"stderr"); it may be nil.
+	runCmd func(ctx context.Context, log *slog.Logger, sink func(stream, text string), name string, args ...string) error
 
 	mu       sync.Mutex
 	inFlight map[string]context.CancelFunc
@@ -63,15 +66,16 @@ type BuildKitConfig struct {
 	Repo              store.Repository
 	Storage           storage.ObjectStore
 	Logger            *slog.Logger
-	SandboxImageDir   string         // path to sandbox-images/
-	RegistryAddr      string         // e.g. "localhost:5000"
-	ImageRepoPrefix   string         // e.g. "contestants"
-	BuildTimeout      time.Duration  // 0 -> 5 minutes
-	PushAttempts      int            // 0 -> 3
-	MaxExtractedBytes int64          // 0 -> 500 MiB
-	MaxFileBytes      int64          // 0 -> 100 MiB
-	Scanner           ImageScanner   // nil -> skip
-	Sandbox           SandboxStarter // nil -> skip
+	SandboxImageDir   string           // path to sandbox-images/
+	RegistryAddr      string           // e.g. "localhost:5000"
+	ImageRepoPrefix   string           // e.g. "contestants"
+	BuildTimeout      time.Duration    // 0 -> 5 minutes
+	PushAttempts      int              // 0 -> 3
+	MaxExtractedBytes int64            // 0 -> 500 MiB
+	MaxFileBytes      int64            // 0 -> 100 MiB
+	Scanner           ImageScanner     // nil -> skip
+	Sandbox           SandboxStarter   // nil -> skip
+	Logs              *buildlog.Buffer // nil -> build logs not captured
 }
 
 func NewBuildKit(cfg BuildKitConfig) *BuildKit {
@@ -108,6 +112,7 @@ func NewBuildKit(cfg BuildKitConfig) *BuildKit {
 		maxFileBytes:    cfg.MaxFileBytes,
 		scanner:         cfg.Scanner,
 		sandbox:         cfg.Sandbox,
+		logs:            cfg.Logs,
 		runCmd:          execRunCmd,
 		inFlight:        make(map[string]context.CancelFunc),
 	}
@@ -158,6 +163,7 @@ func (b *BuildKit) process(parentCtx context.Context, j job) {
 	}()
 
 	log := b.log.With("submission_id", j.submissionID)
+	status := func(text string) { b.appendLog(j.submissionID, "status", text) }
 
 	sub, ok := b.repo.Get(j.submissionID)
 	if !ok {
@@ -169,10 +175,12 @@ func (b *BuildKit) process(parentCtx context.Context, j job) {
 		log.Error("update status building", "err", err)
 		return
 	}
+	status("Build started")
 
 	imageRef, err := b.runBuild(ctx, log, sub)
 	if err != nil {
 		log.Error("build failed", "err", err)
+		status("Build failed: " + truncate(err.Error(), 512))
 		_ = b.repo.UpdateStatus(j.submissionID, store.StatusBuildFailed, "", truncate(err.Error(), 4096))
 		return
 	}
@@ -181,6 +189,7 @@ func (b *BuildKit) process(parentCtx context.Context, j job) {
 		log.Error("update status ready", "err", err)
 		return
 	}
+	status("Image ready: " + imageRef)
 	log.Info("build complete", "image_uri", imageRef)
 
 	if b.sandbox != nil {
@@ -191,6 +200,8 @@ func (b *BuildKit) process(parentCtx context.Context, j job) {
 }
 
 func (b *BuildKit) runBuild(ctx context.Context, log *slog.Logger, sub store.Submission) (string, error) {
+	sink := func(stream, text string) { b.appendLog(sub.ID, stream, text) }
+
 	dockerfile, err := b.dockerfileFor(sub.Language)
 	if err != nil {
 		return "", err
@@ -217,7 +228,7 @@ func (b *BuildKit) runBuild(ctx context.Context, log *slog.Logger, sub store.Sub
 		entrypoint = "/app/main"
 	}
 
-	if err := b.runCmd(ctx, log, "docker", "build",
+	if err := b.runCmd(ctx, log, sink, "docker", "build",
 		"-f", dockerfile,
 		"-t", imageRef,
 		"--build-arg", "ENTRYPOINT_PATH="+entrypoint,
@@ -226,7 +237,7 @@ func (b *BuildKit) runBuild(ctx context.Context, log *slog.Logger, sub store.Sub
 		return "", fmt.Errorf("docker build: %w", err)
 	}
 
-	if err := b.pushWithRetry(ctx, log, imageRef); err != nil {
+	if err := b.pushWithRetry(ctx, log, sink, imageRef); err != nil {
 		return "", fmt.Errorf("docker push: %w", err)
 	}
 
@@ -239,11 +250,11 @@ func (b *BuildKit) runBuild(ctx context.Context, log *slog.Logger, sub store.Sub
 	return imageRef, nil
 }
 
-func (b *BuildKit) pushWithRetry(ctx context.Context, log *slog.Logger, imageRef string) error {
+func (b *BuildKit) pushWithRetry(ctx context.Context, log *slog.Logger, sink func(stream, text string), imageRef string) error {
 	var last error
 	backoff := time.Second
 	for attempt := 1; attempt <= b.pushAttempts; attempt++ {
-		err := b.runCmd(ctx, log, "docker", "push", imageRef)
+		err := b.runCmd(ctx, log, sink, "docker", "push", imageRef)
 		if err == nil {
 			return nil
 		}
@@ -367,10 +378,18 @@ func keyFromSourceURI(uri string) (string, error) {
 	return strings.TrimPrefix(u.Path, "/"), nil
 }
 
-func execRunCmd(ctx context.Context, log *slog.Logger, name string, args ...string) error {
+// appendLog records a build-log line for a submission when a buffer is wired.
+// nil-safe so the stub builder and tests can run without one.
+func (b *BuildKit) appendLog(submissionID, stream, text string) {
+	if b.logs != nil {
+		b.logs.Append(submissionID, stream, text)
+	}
+}
+
+func execRunCmd(ctx context.Context, log *slog.Logger, sink func(stream, text string), name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdout = logWriter{log: log, stream: "stdout", cmd: name}
-	cmd.Stderr = logWriter{log: log, stream: "stderr", cmd: name}
+	cmd.Stdout = logWriter{log: log, stream: "stdout", cmd: name, sink: sink}
+	cmd.Stderr = logWriter{log: log, stream: "stderr", cmd: name, sink: sink}
 	return cmd.Run()
 }
 
@@ -378,6 +397,7 @@ type logWriter struct {
 	log    *slog.Logger
 	stream string
 	cmd    string
+	sink   func(stream, text string)
 }
 
 func (w logWriter) Write(p []byte) (int, error) {
@@ -386,6 +406,9 @@ func (w logWriter) Write(p []byte) (int, error) {
 			continue
 		}
 		w.log.Info("subprocess", "cmd", w.cmd, "stream", w.stream, "line", line)
+		if w.sink != nil {
+			w.sink(w.stream, line)
+		}
 	}
 	return len(p), nil
 }

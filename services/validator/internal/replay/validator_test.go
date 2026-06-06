@@ -100,6 +100,41 @@ func TestPerContestantIsolation(t *testing.T) {
 	}
 }
 
+// withSub stamps a submission_id onto an event built by the event helper.
+func withSub(e *telemetryv1.OrderEvent, sid string) *telemetryv1.OrderEvent {
+	e.SubmissionId = sid
+	return e
+}
+
+// TestPerSubmissionIsolation proves a contestant's two attempts replay against
+// SEPARATE reference books and keep SEPARATE correctness tallies — a buggy
+// second attempt must not taint the clean first attempt, and the clean attempt's
+// resting orders must not leak into the second attempt's book.
+func TestPerSubmissionIsolation(t *testing.T) {
+	v := replay.NewValidator()
+	// Attempt s1 (clean): rest a sell, then a buy that correctly fills 5.
+	v.Process(withSub(event("c1", "s1-sell", lim, sell, 99, 5, 0, 1), "s1"))
+	v.Process(withSub(event("c1", "s1-buy", lim, buy, 100, 5, 5, 2), "s1"))
+	// Attempt s2 (buggy): a buy claims a fill of 5, but s2's book is EMPTY
+	// (s1's resting sell must not leak in), so the correct fill is 0 → mismatch.
+	v.Process(withSub(event("c1", "s2-buy", lim, buy, 100, 5, 5, 3), "s2"))
+
+	r1, ok1 := v.Report("s1")
+	r2, ok2 := v.Report("s2")
+	if !ok1 || !ok2 {
+		t.Fatalf("missing report: s1=%v s2=%v", ok1, ok2)
+	}
+	if r1.ContestantID != "c1" || r1.SubmissionID != "s1" {
+		t.Errorf("s1 identity: %+v", r1)
+	}
+	if r1.Mismatches != 0 || r1.Correctness != 1.0 {
+		t.Errorf("s1 should be perfect (own book): %+v", r1)
+	}
+	if r2.Mismatches != 1 || r2.Correctness != 0.0 {
+		t.Errorf("s2 should catch the bogus fill (fresh empty book): %+v", r2)
+	}
+}
+
 func TestUnspecifiedResultNotScored(t *testing.T) {
 	v := replay.NewValidator()
 	// A FIX-style event with no authoritative fill: replayed for book state but

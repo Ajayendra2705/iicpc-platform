@@ -45,6 +45,7 @@ func buildHandler(cfg config, submProxy http.Handler) http.Handler {
 	mux.HandleFunc("POST /auth/token", handleToken(cfg))
 	mux.Handle("POST /submissions", jwtMW(submProxy))
 	mux.Handle("GET /submissions/{id}", jwtMW(submProxy))
+	mux.Handle("GET /submissions/{id}/logs", jwtMW(submProxy))
 	mux.Handle("GET /submissions", jwtMW(submProxy))
 
 	return httpx.AccessLog(httpx.RequestID(rl.Middleware(mux)))

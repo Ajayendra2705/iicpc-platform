@@ -18,6 +18,7 @@ const nextConfig = {
       { source: '/api/validate/:id', destination: `${validator}/validate/:id` },
       { source: '/api/submissions', destination: `${submission}/submissions` },
       { source: '/api/submissions/:id', destination: `${submission}/submissions/:id` },
+      { source: '/api/submissions/:id/logs', destination: `${submission}/submissions/:id/logs` },
     ];
   },
 };

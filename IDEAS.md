@@ -89,7 +89,7 @@ _Last updated: D32 — all 4 differentiators shipped + 4 PS-audit gaps closed (2
 
 - D21: bot-worker → telemetry-ingester wire is live (closed pre-existing TODO).
 - D22.5: Windows IPv6 loopback fix — all default endpoints use 127.0.0.1 not localhost. Document in SETUP.md if not already there.
-- D24: submission-svc build log streaming still deferred (audit item #7); UI uses synthetic line sequence as placeholder.
+- D24: submission-svc build log streaming — DONE. Real `docker build`/`push` output is captured per submission (internal/buildlog) and served at `GET /submissions/{id}/logs?since=N`; the UI polls it live and only falls back to the synthetic stage narration when no real logs are present.
 - D25: IRSA service-account → IAM-role mapping not yet wired in helm chart (planned alongside external-secrets-operator).
 - D26: helm chart inlines plain `env:` for service config; long lists (Kafka brokers) should move to ConfigMap; secrets need external-secrets-operator + AWS Secrets Manager.
 - D28: go.work directive auto-bumps when running `go mod tidy` on a newer toolchain — pin `GOTOOLCHAIN=go1.26.0` locally to prevent drift.

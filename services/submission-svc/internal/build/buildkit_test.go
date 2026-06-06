@@ -185,7 +185,7 @@ func TestPushWithRetrySucceedsOnSecondAttempt(t *testing.T) {
 		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 		PushAttempts: 3,
 	})
-	bk.runCmd = func(_ context.Context, _ *slog.Logger, _ string, _ ...string) error {
+	bk.runCmd = func(_ context.Context, _ *slog.Logger, _ func(string, string), _ string, _ ...string) error {
 		n := attempts.Add(1)
 		if n < 2 {
 			return io.ErrUnexpectedEOF
@@ -194,7 +194,7 @@ func TestPushWithRetrySucceedsOnSecondAttempt(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := bk.pushWithRetry(ctx, slog.Default(), "img"); err != nil {
+	if err := bk.pushWithRetry(ctx, slog.Default(), nil, "img"); err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
 	if attempts.Load() != 2 {

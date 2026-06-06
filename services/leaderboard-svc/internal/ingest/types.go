@@ -15,17 +15,21 @@ type AggSnapshot struct {
 	P99Ns        int64   `json:"p99_ns"`
 }
 
-// ValReport mirrors validator's GET /validate row.
+// ValReport mirrors validator's GET /validate row. SubmissionID is set when the
+// validator scored per submission; empty for legacy contestant-keyed reports.
 type ValReport struct {
 	ContestantID string  `json:"contestant_id"`
+	SubmissionID string  `json:"submission_id"`
 	TotalChecked int64   `json:"total_checked"`
 	Mismatches   int64   `json:"mismatches"`
 	Correctness  float64 `json:"correctness"`
 }
 
-// CrashReport mirrors sandbox-runner's GET /crashes row — the per-contestant
-// crash count that feeds the score's stability penalty.
+// CrashReport mirrors sandbox-runner's GET /crashes row — the per-submission
+// crash count that feeds the score's stability penalty. SubmissionID is empty
+// for legacy contestant-keyed pods.
 type CrashReport struct {
 	ContestantID string `json:"contestant_id"`
+	SubmissionID string `json:"submission_id"`
 	Crashes      int64  `json:"crashes"`
 }

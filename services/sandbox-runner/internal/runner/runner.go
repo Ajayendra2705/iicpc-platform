@@ -158,8 +158,8 @@ func (r *Runner) watchCrashesOnce(ctx context.Context, tracker *CrashTracker) er
 		if !ok {
 			continue
 		}
-		if cid, crashes, ok := podCrashes(pod); ok {
-			tracker.Observe(pod.Name, cid, crashes)
+		if cid, sid, crashes, ok := podCrashes(pod); ok {
+			tracker.Observe(pod.Name, cid, sid, crashes)
 		}
 	}
 	return nil // channel closed (server timeout); caller re-establishes
