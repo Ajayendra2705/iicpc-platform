@@ -16,6 +16,62 @@ func evt(contestantID string, latNs int64, result telemetryv1.OrderResult) *tele
 	}
 }
 
+func evtSub(contestantID, submissionID string, latNs int64, result telemetryv1.OrderResult) *telemetryv1.OrderEvent {
+	return &telemetryv1.OrderEvent{
+		ContestantId: contestantID,
+		SubmissionId: submissionID,
+		LatencyNs:    latNs,
+		Result:       result,
+	}
+}
+
+// When attempts carry a submission_id the run maps are keyed by submission, so
+// the per-contestant detail endpoints (Latest / MergedRecent by contestant_id)
+// must still resolve to the contestant's most recent submission.
+func TestLatestAndMergedResolveContestantWithSubmissionID(t *testing.T) {
+	a := windowing.New(time.Second)
+
+	// First attempt: slow.
+	for range 20 {
+		a.Record(evtSub("c1", "sub-old", 9_000_000, telemetryv1.OrderResult_ORDER_RESULT_FILLED))
+	}
+	a.Flush(time.Now().Add(-time.Minute)) // older window
+
+	// Second (latest) attempt: faster, fewer orders.
+	for range 5 {
+		a.Record(evtSub("c1", "sub-new", 1_000_000, telemetryv1.OrderResult_ORDER_RESULT_FILLED))
+	}
+	a.Flush(time.Now())
+
+	// Direct submission_id lookups still work.
+	if _, ok := a.Latest("sub-new"); !ok {
+		t.Fatal("Latest by submission_id: not found")
+	}
+
+	// Lookup by contestant_id must resolve to the most recent submission.
+	got, ok := a.Latest("c1")
+	if !ok {
+		t.Fatal("Latest by contestant_id: not found")
+	}
+	if got.SubmissionID != "sub-new" {
+		t.Errorf("Latest resolved to %q, want most recent submission sub-new", got.SubmissionID)
+	}
+	if got.Count != 5 {
+		t.Errorf("Latest count: got %d want 5 (the latest attempt)", got.Count)
+	}
+
+	merged, ok := a.MergedRecent("c1", 0)
+	if !ok {
+		t.Fatal("MergedRecent by contestant_id: not found")
+	}
+	if merged.SubmissionID != "sub-new" {
+		t.Errorf("MergedRecent resolved to %q, want sub-new", merged.SubmissionID)
+	}
+	if merged.TotalCount != 5 {
+		t.Errorf("MergedRecent total count: got %d want 5", merged.TotalCount)
+	}
+}
+
 func TestPercentileOrdering(t *testing.T) {
 	a := windowing.New(time.Second)
 	for i := int64(1); i <= 1000; i++ {

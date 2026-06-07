@@ -204,18 +204,50 @@ func (a *Aggregator) Flush(now time.Time) []Snapshot {
 	return out
 }
 
+// latestRunKeyForContestant returns the run key of the contestant's most
+// recently flushed submission, scanning the latest snapshots. It lets the
+// per-contestant detail endpoints resolve a contestant_id even though runs are
+// keyed by submission_id once attempts carry one. Caller must hold a.mu.
+func (a *Aggregator) latestRunKeyForContestant(contestantID string) (string, bool) {
+	var (
+		bestKey   string
+		bestStart time.Time
+		found     bool
+	)
+	for key, snap := range a.latest {
+		if snap.ContestantID != contestantID {
+			continue
+		}
+		if !found || snap.WindowStart.After(bestStart) {
+			bestKey, bestStart, found = key, snap.WindowStart, true
+		}
+	}
+	return bestKey, found
+}
+
 // MergedRecent returns a percentile cut over the last N flushed windows for
 // the run keyed by key (a submission_id, or a contestant_id for legacy runs).
 // Histograms are merged bucket-by-bucket so the result is exact — NOT an
 // average of per-window percentiles (which would be wrong). If fewer than N
-// windows are available, merges whatever's there. Returns false if no windows
-// have been flushed yet for this key.
+// windows are available, merges whatever's there. When key matches no run
+// directly it is treated as a contestant_id and resolved to that contestant's
+// most recent submission, so /metrics/merged/{contestant_id} still works once
+// attempts carry a submission_id. Returns false if nothing has been flushed
+// for the key or any of the contestant's submissions.
 func (a *Aggregator) MergedRecent(key string, windows int) (MergedSnapshot, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	ring, ok := a.history[key]
 	if !ok || len(ring) == 0 {
+		// key may be a contestant_id while runs are keyed by submission_id.
+		rk, found := a.latestRunKeyForContestant(key)
+		if !found {
+			return MergedSnapshot{}, false
+		}
+		ring = a.history[rk]
+	}
+	if len(ring) == 0 {
 		return MergedSnapshot{}, false
 	}
 	if windows <= 0 || windows > len(ring) {
@@ -284,12 +316,21 @@ func (a *Aggregator) AllMerged(windows int) []MergedSnapshot {
 	return out
 }
 
-// Latest returns the most recently flushed snapshot for the contestant.
-func (a *Aggregator) Latest(contestantID string) (Snapshot, bool) {
+// Latest returns the most recently flushed snapshot for the given id. The id is
+// first tried as a run key (a submission_id, or a contestant_id for legacy
+// runs); if that misses it is resolved as a contestant_id to that contestant's
+// most recent submission, so /metrics/{contestant_id} still works once attempts
+// carry a submission_id.
+func (a *Aggregator) Latest(id string) (Snapshot, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	s, ok := a.latest[contestantID]
-	return s, ok
+	if s, ok := a.latest[id]; ok {
+		return s, true
+	}
+	if key, ok := a.latestRunKeyForContestant(id); ok {
+		return a.latest[key], true
+	}
+	return Snapshot{}, false
 }
 
 // All returns a copy of every contestant's latest snapshot.
