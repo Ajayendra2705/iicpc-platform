@@ -65,11 +65,20 @@ func (i *Ingester) Tick(ctx context.Context) error {
 	}
 
 	// Correctness is matched to a submission when the validator scored per
-	// submission, falling back to the contestant-level value for legacy reports
-	// (or when a submission has no validator row yet).
+	// submission, falling back to the contestant-level value for legacy reports.
+	//
+	// A correctness value is only meaningful when the validator actually checked
+	// at least one authoritative fill. A report with TotalChecked==0 (e.g. a
+	// submission whose every event was UNSPECIFIED or cancel-only) carries the
+	// validator's default correctness=1.0 — crediting it would hand full marks to
+	// an engine we never verified. Treat such reports as absent so the fail-closed
+	// skip below applies until real checks land.
 	corrBySubmission := make(map[string]float64)
 	corrByContestant := make(map[string]float64, len(reports))
 	for _, r := range reports {
+		if r.TotalChecked <= 0 {
+			continue
+		}
 		if r.SubmissionID != "" {
 			corrBySubmission[r.SubmissionID] = r.Correctness
 		}

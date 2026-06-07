@@ -29,19 +29,25 @@ func evtSub(contestantID, submissionID string, latNs int64, result telemetryv1.O
 // the per-contestant detail endpoints (Latest / MergedRecent by contestant_id)
 // must still resolve to the contestant's most recent submission.
 func TestLatestAndMergedResolveContestantWithSubmissionID(t *testing.T) {
-	a := windowing.New(time.Second)
+	// Inject a clock so the two attempts' window starts are unambiguously
+	// ordered. With the real wall clock the two starts can land microseconds (or,
+	// at Windows' timer resolution, zero ns) apart and tie, making "most recent"
+	// resolution nondeterministic.
+	now := time.Unix(100, 0)
+	a := windowing.New(time.Second, windowing.WithClock(func() time.Time { return now }))
 
-	// First attempt: slow.
+	// First attempt: slow, opens its window at t=100s.
 	for range 20 {
 		a.Record(evtSub("c1", "sub-old", 9_000_000, telemetryv1.OrderResult_ORDER_RESULT_FILLED))
 	}
-	a.Flush(time.Now().Add(-time.Minute)) // older window
+	a.Flush(now.Add(time.Second))
 
-	// Second (latest) attempt: faster, fewer orders.
+	// Second (latest) attempt: faster, fewer orders, window opens at t=200s.
+	now = time.Unix(200, 0)
 	for range 5 {
 		a.Record(evtSub("c1", "sub-new", 1_000_000, telemetryv1.OrderResult_ORDER_RESULT_FILLED))
 	}
-	a.Flush(time.Now())
+	a.Flush(now.Add(time.Second))
 
 	// Direct submission_id lookups still work.
 	if _, ok := a.Latest("sub-new"); !ok {

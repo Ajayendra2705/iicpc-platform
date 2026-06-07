@@ -111,3 +111,37 @@ func TestSnapshot(t *testing.T) {
 		t.Fatalf("want 1 ask level at 101, got %v", snap.Asks)
 	}
 }
+
+// TestPlaceSkipsExhaustedTopAndClearsIndex exercises the defensive lazy-skip of
+// an exhausted top order and asserts it is removed from the price index too. If
+// the skip left a stale index entry, a later Cancel would call heap.Remove with
+// a dangling index and corrupt the book or panic.
+func TestPlaceSkipsExhaustedTopAndClearsIndex(t *testing.T) {
+	ob := New()
+	// Two resting asks; A is the better (lower) price so it sits on top.
+	if _, err := ob.Place(&Order{ID: "A", Side: Sell, Price: 100, Qty: 5, At: time.Unix(0, 1)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ob.Place(&Order{ID: "B", Side: Sell, Price: 101, Qty: 5, At: time.Unix(0, 2)}); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate the case the skip-loop defends against: the top order is exhausted
+	// (Remaining==0) yet still present in BOTH the heap and the index.
+	ob.orders["A"].Remaining = 0
+
+	// A crossing buy must skip the exhausted A and fill against B.
+	fills, err := ob.Place(&Order{ID: "buy", Side: Buy, Price: 101, Qty: 5, At: time.Unix(0, 3)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fills) != 1 || fills[0].SellOrderID != "B" || fills[0].Qty != 5 {
+		t.Fatalf("expected single fill against B, got %+v", fills)
+	}
+	// The skip must have cleared A from the index, not just the heap.
+	ob.mu.Lock()
+	_, stale := ob.askIndex["A"]
+	ob.mu.Unlock()
+	if stale {
+		t.Error("exhausted top A left a stale askIndex entry after skip")
+	}
+}

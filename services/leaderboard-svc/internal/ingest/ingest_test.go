@@ -54,8 +54,8 @@ func TestTickUpsertsScores(t *testing.T) {
 			{ContestantID: "beta", P99Ns: 500_000_000, TPS: 0},
 		},
 		reports: []ingest.ValReport{
-			{ContestantID: "alpha", Correctness: 1.0},
-			{ContestantID: "beta", Correctness: 0.5},
+			{ContestantID: "alpha", Correctness: 1.0, TotalChecked: 100},
+			{ContestantID: "beta", Correctness: 0.5, TotalChecked: 100},
 		},
 	}
 	ing, s, _ := newIngester(f)
@@ -91,10 +91,10 @@ func TestTickRanksContestantByBestSubmission(t *testing.T) {
 		// Per-submission verdicts, as the validator emits once attempts carry a
 		// submission_id. All correct here — the test isolates best-of on latency/TPS.
 		reports: []ingest.ValReport{
-			{ContestantID: "carol", SubmissionID: "c-good", Correctness: 1.0},
-			{ContestantID: "carol", SubmissionID: "c-great", Correctness: 1.0},
-			{ContestantID: "carol", SubmissionID: "c-bad", Correctness: 1.0},
-			{ContestantID: "dave", SubmissionID: "d-1", Correctness: 1.0},
+			{ContestantID: "carol", SubmissionID: "c-good", Correctness: 1.0, TotalChecked: 100},
+			{ContestantID: "carol", SubmissionID: "c-great", Correctness: 1.0, TotalChecked: 100},
+			{ContestantID: "carol", SubmissionID: "c-bad", Correctness: 1.0, TotalChecked: 100},
+			{ContestantID: "dave", SubmissionID: "d-1", Correctness: 1.0, TotalChecked: 100},
 		},
 	}
 	ing, s, _ := newIngester(f)
@@ -162,7 +162,7 @@ func TestTickAttributesCorrectnessAndCrashesPerSubmission(t *testing.T) {
 func TestTickBroadcastsTopN(t *testing.T) {
 	f := &mockFetcher{
 		snaps:   []ingest.AggSnapshot{{ContestantID: "a", P99Ns: 1_000, TPS: 50_000}},
-		reports: []ingest.ValReport{{ContestantID: "a", Correctness: 1.0}},
+		reports: []ingest.ValReport{{ContestantID: "a", Correctness: 1.0, TotalChecked: 100}},
 	}
 	ing, _, h := newIngester(f)
 	c := h.Register()
@@ -198,13 +198,41 @@ func TestTickSkipsUnscoredSubmission(t *testing.T) {
 	}
 
 	// Validator catches up — now the submission is scored and ranks.
-	f.reports = []ingest.ValReport{{ContestantID: "a", SubmissionID: "s1", Correctness: 1.0}}
+	f.reports = []ingest.ValReport{{ContestantID: "a", SubmissionID: "s1", Correctness: 1.0, TotalChecked: 50}}
 	if err := ing.Tick(context.Background()); err != nil {
 		t.Fatalf("Tick after validator: %v", err)
 	}
 	top, _ := s.Top(context.Background(), 0)
 	if len(top) != 1 || top[0].Score < 900 {
 		t.Errorf("expected ~perfect score once validator reports: %+v", top)
+	}
+}
+
+// TestTickIgnoresZeroCheckedValidatorReport closes the fail-open hole where the
+// validator emits correctness=1.0 with TotalChecked=0 for a submission it never
+// actually verified (all events UNSPECIFIED or cancel-only). Such a report must
+// NOT be credited — the submission stays unscored until real fills are checked.
+func TestTickIgnoresZeroCheckedValidatorReport(t *testing.T) {
+	f := &mockFetcher{
+		snaps: []ingest.AggSnapshot{{ContestantID: "ghost", SubmissionID: "g1", P99Ns: 1_000, TPS: 50_000}},
+		// Validator default: correctness 1.0 but nothing was actually checked.
+		reports: []ingest.ValReport{{ContestantID: "ghost", SubmissionID: "g1", Correctness: 1.0, TotalChecked: 0}},
+	}
+	ing, s, _ := newIngester(f)
+	if err := ing.Tick(context.Background()); err != nil {
+		t.Fatalf("Tick: %v", err)
+	}
+	if top, _ := s.Top(context.Background(), 0); len(top) != 0 {
+		t.Fatalf("zero-checked validator report must not be credited: got %+v", top)
+	}
+
+	// Once the validator has actually checked fills, the submission scores.
+	f.reports = []ingest.ValReport{{ContestantID: "ghost", SubmissionID: "g1", Correctness: 1.0, TotalChecked: 25}}
+	if err := ing.Tick(context.Background()); err != nil {
+		t.Fatalf("Tick after real checks: %v", err)
+	}
+	if top, _ := s.Top(context.Background(), 0); len(top) != 1 || top[0].Score < 900 {
+		t.Errorf("expected score once checked: %+v", top)
 	}
 }
 
@@ -267,8 +295,8 @@ func TestTickAppliesCrashPenalty(t *testing.T) {
 			{ContestantID: "doomed", P99Ns: 1_000, TPS: 50_000},
 		},
 		reports: []ingest.ValReport{
-			{ContestantID: "healthy", Correctness: 1.0},
-			{ContestantID: "doomed", Correctness: 1.0},
+			{ContestantID: "healthy", Correctness: 1.0, TotalChecked: 100},
+			{ContestantID: "doomed", Correctness: 1.0, TotalChecked: 100},
 		},
 		crashes: []ingest.CrashReport{{ContestantID: "doomed", Crashes: 1}},
 	}

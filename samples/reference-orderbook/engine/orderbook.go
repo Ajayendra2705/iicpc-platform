@@ -93,6 +93,21 @@ func New() *OrderBook {
 	return ob
 }
 
+// popAsk removes the top ask from the heap AND its index entry. Routing every
+// pop through here keeps askIndex consistent — including the lazy-skip of
+// exhausted tops below — so a later Cancel never dereferences a stale heap
+// index (which would remove the wrong order or panic). Caller holds ob.mu.
+func (ob *OrderBook) popAsk() {
+	e := heap.Pop(&ob.asks).(*askEntry)
+	delete(ob.askIndex, e.o.ID)
+}
+
+// popBid is popAsk's mirror for the bid side.
+func (ob *OrderBook) popBid() {
+	e := heap.Pop(&ob.bids).(*bidEntry)
+	delete(ob.bidIndex, e.o.ID)
+}
+
 func (ob *OrderBook) Place(o *Order) ([]Fill, error) {
 	ob.mu.Lock()
 	defer ob.mu.Unlock()
@@ -112,7 +127,7 @@ func (ob *OrderBook) Place(o *Order) ([]Fill, error) {
 		for o.Remaining > 0 && ob.asks.Len() > 0 {
 			// skip cancelled/exhausted tops
 			for ob.asks.Len() > 0 && ob.asks[0].o.Remaining == 0 {
-				heap.Pop(&ob.asks)
+				ob.popAsk()
 			}
 			if ob.asks.Len() == 0 {
 				break
@@ -126,8 +141,7 @@ func (ob *OrderBook) Place(o *Order) ([]Fill, error) {
 			o.Remaining -= qty
 			best.Remaining -= qty
 			if best.Remaining == 0 {
-				heap.Pop(&ob.asks)
-				delete(ob.askIndex, best.ID)
+				ob.popAsk()
 			}
 		}
 		if o.Remaining > 0 {
@@ -139,7 +153,7 @@ func (ob *OrderBook) Place(o *Order) ([]Fill, error) {
 		// match against bids
 		for o.Remaining > 0 && ob.bids.Len() > 0 {
 			for ob.bids.Len() > 0 && ob.bids[0].o.Remaining == 0 {
-				heap.Pop(&ob.bids)
+				ob.popBid()
 			}
 			if ob.bids.Len() == 0 {
 				break
@@ -153,8 +167,7 @@ func (ob *OrderBook) Place(o *Order) ([]Fill, error) {
 			o.Remaining -= qty
 			best.Remaining -= qty
 			if best.Remaining == 0 {
-				heap.Pop(&ob.bids)
-				delete(ob.bidIndex, best.ID)
+				ob.popBid()
 			}
 		}
 		if o.Remaining > 0 {
@@ -187,7 +200,7 @@ func (ob *OrderBook) PlaceMarket(o *Order) ([]Fill, error) {
 	if o.Side == Buy {
 		for o.Remaining > 0 && ob.asks.Len() > 0 {
 			for ob.asks.Len() > 0 && ob.asks[0].o.Remaining == 0 {
-				heap.Pop(&ob.asks)
+				ob.popAsk()
 			}
 			if ob.asks.Len() == 0 {
 				break
@@ -198,14 +211,13 @@ func (ob *OrderBook) PlaceMarket(o *Order) ([]Fill, error) {
 			o.Remaining -= qty
 			best.Remaining -= qty
 			if best.Remaining == 0 {
-				heap.Pop(&ob.asks)
-				delete(ob.askIndex, best.ID)
+				ob.popAsk()
 			}
 		}
 	} else {
 		for o.Remaining > 0 && ob.bids.Len() > 0 {
 			for ob.bids.Len() > 0 && ob.bids[0].o.Remaining == 0 {
-				heap.Pop(&ob.bids)
+				ob.popBid()
 			}
 			if ob.bids.Len() == 0 {
 				break
@@ -216,8 +228,7 @@ func (ob *OrderBook) PlaceMarket(o *Order) ([]Fill, error) {
 			o.Remaining -= qty
 			best.Remaining -= qty
 			if best.Remaining == 0 {
-				heap.Pop(&ob.bids)
-				delete(ob.bidIndex, best.ID)
+				ob.popBid()
 			}
 		}
 	}

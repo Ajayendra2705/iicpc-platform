@@ -25,6 +25,8 @@ func ValidateRequest(contestantID, entrypoint string, lang store.Language) error
 	if ep == "" {
 		return ErrEmptyEntrypoint
 	}
+	// Entry point is an in-container path (e.g. /app/orderbook); absolute is fine.
+	// Reject parent traversal so it can't escape to e.g. /app/../../etc/passwd.
 	if strings.Contains(ep, "..") {
 		return ErrInvalidEntrypoint
 	}
