@@ -324,6 +324,7 @@ Locked decisions live in [`docs/ADR/`](ADR/):
 - [0002 — gVisor for sandbox isolation](ADR/0002-gvisor-isolation.md)
 - [0003 — Redpanda over Kafka for the bus](ADR/0003-redpanda-vs-kafka.md)
 - [0004 — Buildkit prototype → Kaniko production](ADR/0004-build-strategy.md)
+- [0005 — Scoring consistency & crash-recovery model](ADR/0005-scoring-consistency-and-recovery.md)
 
 Open decisions from D1 — now closed:
 - ✅ MSK Serverless chosen for prod (see `infra/terraform/msk.tf`)
