@@ -135,6 +135,34 @@ func TestPerSubmissionIsolation(t *testing.T) {
 	}
 }
 
+// TestReportResolvesContestantToLatestSubmission proves GET /validate/{id} still
+// works when runs are keyed by submission_id: a lookup by contestant_id resolves
+// to that contestant's most recently active submission (newest event ts).
+func TestReportResolvesContestantToLatestSubmission(t *testing.T) {
+	v := replay.NewValidator()
+	// Older attempt s1: perfect (sell then matching buy).
+	v.Process(withSub(event("c1", "s1-sell", lim, sell, 99, 5, 0, 10), "s1"))
+	v.Process(withSub(event("c1", "s1-buy", lim, buy, 100, 5, 5, 11), "s1"))
+	// Newer attempt s2: a bogus fill on an empty book → 1 mismatch.
+	v.Process(withSub(event("c1", "s2-buy", lim, buy, 100, 5, 5, 99), "s2"))
+
+	// Direct submission lookup still works.
+	if _, ok := v.Report("s2"); !ok {
+		t.Fatal("Report by submission_id: not found")
+	}
+	// Lookup by contestant_id resolves to the most recent submission (s2).
+	got, ok := v.Report("c1")
+	if !ok {
+		t.Fatal("Report by contestant_id: not found")
+	}
+	if got.SubmissionID != "s2" {
+		t.Errorf("resolved to %q, want most recent submission s2", got.SubmissionID)
+	}
+	if got.Mismatches != 1 {
+		t.Errorf("expected s2's tally (1 mismatch), got %+v", got)
+	}
+}
+
 func TestUnspecifiedResultNotScored(t *testing.T) {
 	v := replay.NewValidator()
 	// A FIX-style event with no authoritative fill: replayed for book state but

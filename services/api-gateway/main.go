@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -23,6 +24,7 @@ type config struct {
 	SubmissionSvcURL string
 	RateRPS          float64
 	RateBurst        float64
+	TrustedProxyHops int
 }
 
 func loadConfig() config {
@@ -33,11 +35,16 @@ func loadConfig() config {
 		SubmissionSvcURL: envOr("SUBMISSION_SVC_URL", "http://localhost:8081"),
 		RateRPS:          20,
 		RateBurst:        50,
+		// Number of trusted reverse proxies in front of the gateway. 0 = hit
+		// directly (rate-limit by RemoteAddr). Set to 1 behind a single k8s
+		// ingress so rate limiting keys on the real client IP, not the shared
+		// ingress IP (and can't be spoofed via a forged X-Forwarded-For).
+		TrustedProxyHops: envInt("TRUSTED_PROXY_HOPS", 0),
 	}
 }
 
 func buildHandler(cfg config, submProxy http.Handler) http.Handler {
-	rl := ratelimit.New(cfg.RateRPS, cfg.RateBurst)
+	rl := ratelimit.New(cfg.RateRPS, cfg.RateBurst, cfg.TrustedProxyHops)
 	jwtMW := func(h http.Handler) http.Handler { return auth.Middleware(cfg.JWTSecret, h) }
 
 	mux := http.NewServeMux()
@@ -120,6 +127,15 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
 	}
 	return fallback
 }

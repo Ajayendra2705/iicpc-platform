@@ -133,6 +133,13 @@ type FIXClient struct {
 	initiator *quickfix.Initiator
 	symbol    string
 	seq       atomic.Uint64
+
+	// sides maps a placed order's ClOrdID -> its FIX Side(54) so a later
+	// OrderCancelRequest carries the original side (required by FIX 4.4). Entries
+	// are added on a successful place and removed on cancel; uncancelled orders
+	// leak until the (ephemeral, per-benchmark) pod exits, which is acceptable.
+	mu    sync.Mutex
+	sides map[string]string
 }
 
 // NewFIX creates a FIXClient. Call Connect before placing orders.
@@ -164,7 +171,7 @@ SocketConnectPort=%d
 		return nil, fmt.Errorf("fix initiator: %w", err)
 	}
 
-	return &FIXClient{app: app, initiator: initiator, symbol: cfg.Symbol}, nil
+	return &FIXClient{app: app, initiator: initiator, symbol: cfg.Symbol, sides: make(map[string]string)}, nil
 }
 
 // Connect starts the FIX initiator and blocks until logon completes or ctx is cancelled.
@@ -238,7 +245,14 @@ func (c *FIXClient) sendNewOrder(ctx context.Context, side string, price *float6
 
 	select {
 	case res := <-ch:
-		return PlaceResult{ID: res.orderID, Filled: res.cumQty, FillKnown: res.fillKnown, LatencyNs: time.Since(start).Nanoseconds()}, nil
+		// Use our ClOrdID as the order handle (not the exchange OrderID, tag 37,
+		// which some engines omit on an ack — that would yield an empty, colliding
+		// id). The handle is what CancelOrder references via OrigClOrdID(41), and
+		// what telemetry stamps as OrderId so the validator can key the order.
+		c.mu.Lock()
+		c.sides[clOrdID] = fixSide
+		c.mu.Unlock()
+		return PlaceResult{ID: clOrdID, Filled: res.cumQty, FillKnown: res.fillKnown, LatencyNs: time.Since(start).Nanoseconds()}, nil
 	case <-ctx.Done():
 		c.app.mu.Lock()
 		delete(c.app.pending, clOrdID)
@@ -252,19 +266,39 @@ func (c *FIXClient) sendNewOrder(ctx context.Context, side string, price *float6
 	}
 }
 
-// CancelOrder sends a FIX 4.4 OrderCancelRequest (35=F) and waits for
-// an ExecutionReport acknowledging the cancel.
-func (c *FIXClient) CancelOrder(ctx context.Context, origOrderID string) (int64, error) {
-	clOrdID := fmt.Sprintf("cxl-%d", c.seq.Add(1))
-
+// buildCancel constructs a FIX 4.4 OrderCancelRequest (35=F). origClOrdID is the
+// ClOrdID(11) of the order being cancelled — referenced via OrigClOrdID(41), per
+// FIX 4.4 — and side is its original Side(54), also required. clOrdID is a fresh
+// id for the cancel request itself.
+func buildCancel(clOrdID, origClOrdID, side, symbol string) *quickfix.Message {
 	msg := quickfix.NewMessage()
 	msg.Header.SetField(tagMsgType, quickfix.FIXString("F"))
 	msg.Body.SetField(tagClOrdID, quickfix.FIXString(clOrdID))
-	msg.Body.SetField(tagOrigClOrdID, quickfix.FIXString(origOrderID))
-	msg.Body.SetField(tagSymbol, quickfix.FIXString(c.symbol))
-	msg.Body.SetField(tagSide, quickfix.FIXString("1"))
-	msg.Body.SetField(tagOrderQty, quickfix.FIXString("1"))
+	msg.Body.SetField(tagOrigClOrdID, quickfix.FIXString(origClOrdID))
+	msg.Body.SetField(tagSymbol, quickfix.FIXString(symbol))
+	msg.Body.SetField(tagSide, quickfix.FIXString(side))
 	msg.Body.SetField(tagTransactTime, quickfix.FIXString(time.Now().UTC().Format("20060102-15:04:05.000")))
+	return msg
+}
+
+// CancelOrder sends a FIX 4.4 OrderCancelRequest (35=F) and waits for an
+// ExecutionReport acknowledging the cancel. origClOrdID is the handle returned
+// by PlaceOrder (our ClOrdID for the original order).
+func (c *FIXClient) CancelOrder(ctx context.Context, origClOrdID string) (int64, error) {
+	clOrdID := fmt.Sprintf("cxl-%d", c.seq.Add(1))
+
+	// Recover the original order's side for tag 54; default to buy if unknown.
+	c.mu.Lock()
+	side, ok := c.sides[origClOrdID]
+	if ok {
+		delete(c.sides, origClOrdID)
+	}
+	c.mu.Unlock()
+	if side == "" {
+		side = "1"
+	}
+
+	msg := buildCancel(clOrdID, origClOrdID, side, c.symbol)
 
 	ch := make(chan fixResult, 1)
 	c.app.mu.Lock()

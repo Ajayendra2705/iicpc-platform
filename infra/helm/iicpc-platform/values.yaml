@@ -31,6 +31,9 @@ services:
     env:
       - { name: HTTP_ADDR,           value: ":8080" }
       - { name: SUBMISSION_SVC_URL,  value: "http://submission-svc:8081" }
+      # Behind exactly one k8s ingress, so rate-limit on the real client IP
+      # (rightmost X-Forwarded-For hop), not the shared ingress address.
+      - { name: TRUSTED_PROXY_HOPS,  value: "1" }
 
   submission-svc:
     image: iicpc/submission-svc

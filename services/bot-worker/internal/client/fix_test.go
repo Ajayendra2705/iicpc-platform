@@ -182,6 +182,29 @@ func TestOrigClOrdIDTagValue(t *testing.T) {
 	}
 }
 
+// TestBuildCancelReferencesOrigClOrdIDAndSide locks in the FIX 4.4 cancel fix:
+// the OrderCancelRequest references the ORIGINAL order's ClOrdID via tag 41 (not
+// the exchange OrderID) and carries its Side via tag 54.
+func TestBuildCancelReferencesOrigClOrdIDAndSide(t *testing.T) {
+	msg := buildCancel("cxl-7", "bot-3", "2", "ETHUSD")
+
+	if mt, _ := msg.Header.GetString(tagMsgType); mt != "F" {
+		t.Errorf("MsgType(35): got %q want F", mt)
+	}
+	if v, _ := msg.Body.GetString(tagClOrdID); v != "cxl-7" {
+		t.Errorf("ClOrdID(11): got %q want cxl-7", v)
+	}
+	if v, _ := msg.Body.GetString(tagOrigClOrdID); v != "bot-3" {
+		t.Errorf("OrigClOrdID(41): got %q want bot-3 (original order's ClOrdID, not exchange OrderID)", v)
+	}
+	if v, _ := msg.Body.GetString(tagSide); v != "2" {
+		t.Errorf("Side(54): got %q want 2 (original order's side)", v)
+	}
+	if v, _ := msg.Body.GetString(tagSymbol); v != "ETHUSD" {
+		t.Errorf("Symbol(55): got %q want ETHUSD", v)
+	}
+}
+
 func TestFIXClientImplementsOrderClient(t *testing.T) {
 	// Compile-time check that *FIXClient satisfies OrderClient.
 	var _ OrderClient = (*FIXClient)(nil)

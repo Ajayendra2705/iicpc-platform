@@ -34,6 +34,7 @@ type counters struct {
 	submissionID string
 	total        int64
 	mismatches   int64
+	lastTsNs     int64 // newest event timestamp seen, for most-recent resolution
 }
 
 func NewValidator() *Validator {
@@ -75,6 +76,9 @@ func (v *Validator) Process(e *telemetryv1.OrderEvent) {
 		c = &counters{contestantID: contestant, submissionID: submission}
 		v.counters[key] = c
 	}
+	if ts := e.GetSentTsNs(); ts > c.lastTsNs {
+		c.lastTsNs = ts
+	}
 
 	switch e.GetType() {
 	case telemetryv1.OrderType_ORDER_TYPE_LIMIT, telemetryv1.OrderType_ORDER_TYPE_MARKET:
@@ -112,16 +116,37 @@ func (v *Validator) Process(e *telemetryv1.OrderEvent) {
 	}
 }
 
-// Report returns the correctness summary for one run key (a submission_id, or
-// a contestant_id for legacy runs).
+// Report returns the correctness summary for the given key. The key is first
+// tried as a run key (a submission_id, or a contestant_id for legacy runs); if
+// that misses it is resolved as a contestant_id to that contestant's most
+// recently active submission, so GET /validate/{contestant_id} still works once
+// attempts carry a submission_id (mirrors the aggregator's detail endpoints).
 func (v *Validator) Report(key string) (Report, bool) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	c, ok := v.counters[key]
 	if !ok {
-		return Report{}, false
+		c, ok = v.latestForContestant(key)
+		if !ok {
+			return Report{}, false
+		}
 	}
 	return makeReport(c), true
+}
+
+// latestForContestant returns the counters of the contestant's most recently
+// active submission (by newest event timestamp). Caller must hold v.mu.
+func (v *Validator) latestForContestant(contestantID string) (*counters, bool) {
+	var best *counters
+	for _, c := range v.counters {
+		if c.contestantID != contestantID {
+			continue
+		}
+		if best == nil || c.lastTsNs > best.lastTsNs {
+			best = c
+		}
+	}
+	return best, best != nil
 }
 
 // All returns reports for every run (submission, or contestant for legacy

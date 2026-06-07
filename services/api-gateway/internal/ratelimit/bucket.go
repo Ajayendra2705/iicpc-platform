@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -41,20 +42,51 @@ type clientEntry struct {
 }
 
 type IPLimiter struct {
-	mu      sync.Mutex
-	clients map[string]*clientEntry
-	rps     float64
-	burst   float64
+	mu          sync.Mutex
+	clients     map[string]*clientEntry
+	rps         float64
+	burst       float64
+	trustedHops int
 }
 
-func New(rps, burst float64) *IPLimiter {
+// New builds an IP rate limiter. trustedHops is the number of trusted reverse
+// proxies in front of the gateway: 0 keys on the transport RemoteAddr (correct
+// when hit directly); N keys on the Nth X-Forwarded-For entry from the right —
+// the address the closest trusted proxy observed, which a client cannot spoof.
+func New(rps, burst float64, trustedHops int) *IPLimiter {
 	il := &IPLimiter{
-		clients: make(map[string]*clientEntry),
-		rps:     rps,
-		burst:   burst,
+		clients:     make(map[string]*clientEntry),
+		rps:         rps,
+		burst:       burst,
+		trustedHops: trustedHops,
 	}
 	go il.evict()
 	return il
+}
+
+// clientIP resolves the rate-limit key for a request given the trusted-proxy
+// count. See New for the trust model. Falls back to RemoteAddr when the
+// X-Forwarded-For header is missing or shorter than trustedHops.
+func clientIP(r *http.Request, trustedHops int) string {
+	host := func(addr string) string {
+		if h, _, err := net.SplitHostPort(addr); err == nil {
+			return h
+		}
+		return addr
+	}
+	if trustedHops <= 0 {
+		return host(r.RemoteAddr)
+	}
+	xff := r.Header.Get("X-Forwarded-For")
+	if xff == "" {
+		return host(r.RemoteAddr)
+	}
+	parts := strings.Split(xff, ",")
+	idx := len(parts) - trustedHops
+	if idx < 0 || idx >= len(parts) {
+		return host(r.RemoteAddr)
+	}
+	return strings.TrimSpace(parts[idx])
 }
 
 func (il *IPLimiter) evict() {
@@ -85,10 +117,7 @@ func (il *IPLimiter) Allow(ip string) bool {
 
 func (il *IPLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			ip = r.RemoteAddr
-		}
+		ip := clientIP(r, il.trustedHops)
 		if !il.Allow(ip) {
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 			return
