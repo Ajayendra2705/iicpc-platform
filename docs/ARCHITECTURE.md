@@ -109,6 +109,8 @@ All inter-service code uses Go modules in `services/<name>/`. Cross-service cont
 
 `samples/reference-orderbook` is the "smoke contestant" — heap-based price-time priority orderbook in Go that satisfies the contestant API contract.
 
+**Replica model.** Stateless services (api-gateway, submission-svc, telemetry-ingester, web) and the Redis-backed leaderboard-svc scale horizontally under an HPA — the multi-node demo scales leaderboard-svc 6→12 (`docs/artifacts/kind-multinode/`), and its best-of upsert is an atomic Redis Lua script so concurrent ingesters stay correct. **aggregator and validator run single-replica by design**: each holds per-contestant state *in memory*, sharded by Kafka partition (events are keyed by `contestant_id`), and is scraped over a load-balanced Service — so more than one replica would serve only the slice of contestants on whichever pod answered. A single consumer holds the whole picture, which is correct and ample for contest scale (HDR record + map ops are millions/sec on one core). Scaling them out is a deliberate future step requiring a shared store rather than in-memory state (tracked in `IDEAS.md`). sandbox-runner is exempt — it watches *all* contestant pods, so every replica converges to the full crash picture.
+
 ---
 
 ## 6. Data flow — bot order to leaderboard pixel
