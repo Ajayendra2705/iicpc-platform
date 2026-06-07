@@ -96,26 +96,29 @@ func (i *Ingester) Tick(ctx context.Context) error {
 	// submission with its OWN correctness and crash counts and let the store keep
 	// the contestant's best across attempts.
 	//
-	// Attribution is strict: a snapshot tagged with a submission_id is scored
-	// only from that submission's validator/crash rows. An attempt with no crash
-	// row genuinely had zero crashes — we must NOT fall back to the contestant's
-	// aggregate, or a clean attempt would inherit a sibling attempt's crash. The
-	// contestant-level maps are used only for legacy snapshots that carry no
-	// submission_id at all.
+	// Attribution is strict AND fail-closed: a submission is scored only once the
+	// validator has reported a verdict for it. A snapshot tagged with a
+	// submission_id is scored solely from that submission's validator/crash rows —
+	// never the contestant aggregate, or a clean attempt would inherit a sibling
+	// attempt's crash (an attempt with no crash row genuinely had zero crashes).
+	// If no validator verdict exists yet we SKIP the submission rather than assume
+	// correctness: scoring it fail-open would hand a fast-but-wrong engine free
+	// correctness credit until the validator caught up. The contestant-level maps
+	// are used only for legacy snapshots that carry no submission_id at all.
 	for _, s := range snaps {
 		var corr float64
 		var crashes int64
 		if s.SubmissionID != "" {
 			c, ok := corrBySubmission[s.SubmissionID]
 			if !ok {
-				c = 1.0 // no validator data for this attempt yet — assume correct
+				continue // no validator verdict for this attempt yet — don't score it
 			}
 			corr = c
 			crashes = crashBySubmission[s.SubmissionID] // absent => 0 (no crash)
 		} else {
 			c, ok := corrByContestant[s.ContestantID]
 			if !ok {
-				c = 1.0
+				continue // legacy snapshot with no validator verdict — skip
 			}
 			corr = c
 			crashes = crashByContestant[s.ContestantID]

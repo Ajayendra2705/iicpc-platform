@@ -167,12 +167,17 @@ where:
 Weights, caps, and penalty values are configurable per `score.Config`. Zero-value `Config` falls back to defaults — caller-friendly one-line API.
 
 **Scoring inputs are whole-run, not last-window.** The leaderboard pulls the
-aggregator's `GET /metrics/merged` endpoint, which merges every retained 1-second
-window's HDR histogram **bucket-by-bucket** before reading P50/P90/P99 (averaging
-per-window percentiles is statistically wrong — see `windowing/merge.go`). So
-`latency_norm` reflects a run's tail latency over its **entire run**, and
-`tps_norm` uses cumulative throughput, not one jittery window. The per-window
-`GET /metrics/{id}` view is retained for the live UI charts.
+aggregator's `GET /metrics/merged` endpoint, which merges the run's HDR
+histograms **bucket-by-bucket** before reading P50/P90/P99 (averaging per-window
+percentiles is statistically wrong — see `windowing/merge.go`). The merge reads
+a per-run **cumulative accumulator** that folds in every flushed window and is
+never evicted, so a benchmark longer than the bounded history ring
+(`historyCap`, 60×1s) is still scored on **all** of its data — early performance
+is never silently dropped. So `latency_norm` reflects a run's tail latency over
+its **entire run**, and `tps_norm` uses cumulative throughput, not one jittery
+window. The per-window `GET /metrics/{id}` and last-N-window
+`GET /metrics/merged/{id}` views (bounded by the ring) are retained for the live
+UI charts.
 
 **Each submission is scored in isolation; a contestant ranks on their best.**
 Every `OrderEvent` carries a `submission_id` (stamped by the bot-worker from the
@@ -191,6 +196,14 @@ inherits the prior attempt's resting orders), and the **sandbox-runner** sums
 crashes per submission. The leaderboard attributes correctness and crash
 penalties to the specific submission that earned them, so a clean attempt is
 never dragged down by a sibling attempt's bug or crash.
+
+**Scoring is fail-closed.** A submission is scored only once the validator has
+reported a verdict for it; a submission with telemetry but no validator row yet
+is **skipped**, not assumed correct, so a fast-but-wrong engine can't bank free
+correctness credit during validator lag. The best-of upsert
+(`store.UpsertSubmission`) runs HSET→max→ZADD as a single atomic Redis Lua
+script, so the per-contestant best stays correct even when `leaderboard-svc`
+runs multiple replicas.
 
 Unit tests cover perfect-input top score, individual norm flooring, crash +
 timeout penalty math, never-negative clamp, out-of-range correctness clamp,

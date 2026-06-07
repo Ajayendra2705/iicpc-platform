@@ -238,6 +238,40 @@ func TestMergedRecentClampsWindowsArg(t *testing.T) {
 	}
 }
 
+// TestAllMergedScoresEntireRunBeyondHistoryCap is the regression test for the
+// whole-run scoring fix. The bounded history ring only retains the last
+// historyCap windows, so a run longer than that would silently drop its early
+// performance from the score. AllMerged(0) must instead read the never-evicted
+// cumulative accumulator and count EVERY window, while the ring view stays
+// capped.
+func TestAllMergedScoresEntireRunBeyondHistoryCap(t *testing.T) {
+	a := windowing.New(time.Second)
+
+	total := windowing.DefaultHistoryWindows + 40 // run longer than the ring
+	for range total {
+		a.Record(&telemetryv1.OrderEvent{ContestantId: "c1", LatencyNs: 1_000_000})
+		a.Flush(time.Now())
+	}
+
+	// Scoring path: whole run, not capped at historyCap.
+	rows := a.AllMerged(0)
+	if len(rows) != 1 {
+		t.Fatalf("AllMerged: got %d rows, want 1", len(rows))
+	}
+	if rows[0].WindowCount != total {
+		t.Errorf("whole-run WindowCount: got %d want %d (early windows dropped?)", rows[0].WindowCount, total)
+	}
+	if rows[0].TotalCount != int64(total) {
+		t.Errorf("whole-run TotalCount: got %d want %d", rows[0].TotalCount, total)
+	}
+
+	// Recent-window view stays bounded by the ring.
+	ringView, _ := a.MergedRecent("c1", 10000)
+	if ringView.WindowCount > windowing.DefaultHistoryWindows {
+		t.Errorf("ring view WindowCount: got %d, want <= cap %d", ringView.WindowCount, windowing.DefaultHistoryWindows)
+	}
+}
+
 func TestHistoryRingDoesNotGrowUnbounded(t *testing.T) {
 	a := windowing.New(time.Second)
 	// Push way more flushes than DefaultHistoryWindows

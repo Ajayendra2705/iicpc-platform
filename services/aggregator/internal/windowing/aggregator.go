@@ -53,8 +53,46 @@ type Aggregator struct {
 	open       map[string]*windowState
 	latest     map[string]Snapshot
 	history    map[string][]*flushed // ring buffer per run key; tail is newest
+	cumulative map[string]*cumState  // whole-run accumulator per run key; never evicted
 	startAt    time.Time
 	now        func() time.Time
+}
+
+// cumState accumulates every flushed window for one run so the score can cover
+// the entire run regardless of length. The history ring above is bounded to
+// historyCap windows (for the recent-window UI view); this is not, so a
+// benchmark longer than historyCap seconds is still scored on all of its data.
+type cumState struct {
+	contestantID  string
+	submissionID  string
+	hist          *hdrhistogram.Histogram
+	windowCount   int
+	totalCount    int64
+	totalRejected int64
+	totalTimeouts int64
+	totalDur      time.Duration
+}
+
+// merged renders the accumulated whole-run state as a MergedSnapshot.
+func (c *cumState) merged() MergedSnapshot {
+	avgTPS := 0.0
+	if s := c.totalDur.Seconds(); s > 0 {
+		avgTPS = float64(c.totalCount) / s
+	}
+	return MergedSnapshot{
+		ContestantID:  c.contestantID,
+		SubmissionID:  c.submissionID,
+		WindowCount:   c.windowCount,
+		Duration:      c.totalDur,
+		TotalCount:    c.totalCount,
+		TotalRejected: c.totalRejected,
+		TotalTimeouts: c.totalTimeouts,
+		AverageTPS:    avgTPS,
+		P50Ns:         c.hist.ValueAtQuantile(50),
+		P90Ns:         c.hist.ValueAtQuantile(90),
+		P99Ns:         c.hist.ValueAtQuantile(99),
+		P999Ns:        c.hist.ValueAtQuantile(99.9),
+	}
 }
 
 type windowState struct {
@@ -112,6 +150,7 @@ func New(window time.Duration, opts ...Option) *Aggregator {
 		open:       make(map[string]*windowState),
 		latest:     make(map[string]Snapshot),
 		history:    make(map[string][]*flushed),
+		cumulative: make(map[string]*cumState),
 		startAt:    time.Now(),
 		now:        time.Now,
 	}
@@ -198,6 +237,25 @@ func (a *Aggregator) Flush(now time.Time) []Snapshot {
 			ring = ring[len(ring)-a.historyCap:]
 		}
 		a.history[key] = ring
+
+		// Fold this window into the whole-run accumulator. Unlike the ring, this
+		// is never evicted, so a run longer than historyCap windows is still
+		// scored on all of its data (windows<=0 in MergedRecent reads this).
+		cs, ok := a.cumulative[key]
+		if !ok {
+			cs = &cumState{
+				contestantID: ws.contestantID,
+				submissionID: ws.submissionID,
+				hist:         hdrhistogram.New(defaultMinLatNs, defaultMaxLatNs, defaultSigDigits),
+			}
+			a.cumulative[key] = cs
+		}
+		cs.hist.Merge(ws.hist)
+		cs.windowCount++
+		cs.totalCount += ws.count
+		cs.totalRejected += ws.rejected
+		cs.totalTimeouts += ws.timeouts
+		cs.totalDur += dur
 	}
 	// reset open windows
 	a.open = make(map[string]*windowState)
@@ -225,32 +283,49 @@ func (a *Aggregator) latestRunKeyForContestant(contestantID string) (string, boo
 	return bestKey, found
 }
 
-// MergedRecent returns a percentile cut over the last N flushed windows for
-// the run keyed by key (a submission_id, or a contestant_id for legacy runs).
-// Histograms are merged bucket-by-bucket so the result is exact — NOT an
-// average of per-window percentiles (which would be wrong). If fewer than N
-// windows are available, merges whatever's there. When key matches no run
-// directly it is treated as a contestant_id and resolved to that contestant's
-// most recent submission, so /metrics/merged/{contestant_id} still works once
-// attempts carry a submission_id. Returns false if nothing has been flushed
-// for the key or any of the contestant's submissions.
+// MergedRecent returns a percentile cut for the run keyed by key (a
+// submission_id, or a contestant_id for legacy runs). Histograms are merged
+// bucket-by-bucket so the result is exact — NOT an average of per-window
+// percentiles (which would be wrong).
+//
+// windows<=0 merges the entire run via the never-evicted cumulative accumulator,
+// so a benchmark longer than historyCap seconds is still scored on all of its
+// data (this is the scoring path). windows>0 merges the last N windows from the
+// bounded ring (the recent-window UI view), clamped to what's retained.
+//
+// When key matches no run directly it is treated as a contestant_id and resolved
+// to that contestant's most recent submission, so /metrics/merged/{contestant_id}
+// still works once attempts carry a submission_id. Returns false if nothing has
+// been flushed for the key or any of the contestant's submissions.
 func (a *Aggregator) MergedRecent(key string, windows int) (MergedSnapshot, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	ring, ok := a.history[key]
-	if !ok || len(ring) == 0 {
+	effKey := key
+	if _, ok := a.history[effKey]; !ok {
 		// key may be a contestant_id while runs are keyed by submission_id.
 		rk, found := a.latestRunKeyForContestant(key)
 		if !found {
 			return MergedSnapshot{}, false
 		}
-		ring = a.history[rk]
+		effKey = rk
 	}
+
+	// Whole-run scoring path: read the cumulative accumulator covering every
+	// flushed window, not just the last historyCap of them.
+	if windows <= 0 {
+		cs, ok := a.cumulative[effKey]
+		if !ok || cs.windowCount == 0 {
+			return MergedSnapshot{}, false
+		}
+		return cs.merged(), true
+	}
+
+	ring := a.history[effKey]
 	if len(ring) == 0 {
 		return MergedSnapshot{}, false
 	}
-	if windows <= 0 || windows > len(ring) {
+	if windows > len(ring) {
 		windows = len(ring)
 	}
 	slice := ring[len(ring)-windows:]
@@ -292,12 +367,13 @@ func (a *Aggregator) MergedRecent(key string, windows int) (MergedSnapshot, bool
 	}, true
 }
 
-// AllMerged returns the whole-history merged snapshot for every contestant
-// that has at least one flushed window. windows<=0 merges the entire retained
-// history (up to historyCap); a positive value bounds it to the last N windows.
-// Percentiles are exact bucket-by-bucket merges, never averages of per-window
-// percentiles — this is the snapshot the leaderboard scores on, so a
-// contestant is ranked by its whole-run tail latency, not one jittery window.
+// AllMerged returns the merged snapshot for every run that has at least one
+// flushed window. windows<=0 merges the run's entire history via the cumulative
+// accumulator (no historyCap limit); a positive value bounds it to the last N
+// retained windows. Percentiles are exact bucket-by-bucket merges, never
+// averages of per-window percentiles — this is the snapshot the leaderboard
+// scores on (windows=0), so a contestant is ranked by its true whole-run tail
+// latency, not one jittery window and not just the last historyCap seconds.
 func (a *Aggregator) AllMerged(windows int) []MergedSnapshot {
 	a.mu.Lock()
 	ids := make([]string, 0, len(a.history))

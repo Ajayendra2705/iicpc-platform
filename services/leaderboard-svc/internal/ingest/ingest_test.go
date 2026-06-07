@@ -88,9 +88,13 @@ func TestTickRanksContestantByBestSubmission(t *testing.T) {
 			{ContestantID: "carol", SubmissionID: "c-bad", P99Ns: 500_000_000, TPS: 100},
 			{ContestantID: "dave", SubmissionID: "d-1", P99Ns: 1_500_000, TPS: 9_000},
 		},
+		// Per-submission verdicts, as the validator emits once attempts carry a
+		// submission_id. All correct here — the test isolates best-of on latency/TPS.
 		reports: []ingest.ValReport{
-			{ContestantID: "carol", Correctness: 1.0},
-			{ContestantID: "dave", Correctness: 1.0},
+			{ContestantID: "carol", SubmissionID: "c-good", Correctness: 1.0},
+			{ContestantID: "carol", SubmissionID: "c-great", Correctness: 1.0},
+			{ContestantID: "carol", SubmissionID: "c-bad", Correctness: 1.0},
+			{ContestantID: "dave", SubmissionID: "d-1", Correctness: 1.0},
 		},
 	}
 	ing, s, _ := newIngester(f)
@@ -176,18 +180,31 @@ func TestTickBroadcastsTopN(t *testing.T) {
 	}
 }
 
-func TestTickMissingValidatorAssumesCorrect(t *testing.T) {
+// TestTickSkipsUnscoredSubmission proves the fail-closed policy: a submission
+// that produced telemetry but has no validator verdict yet is NOT scored, so it
+// cannot get free correctness credit. Once the validator reports on a later
+// tick, it ranks normally.
+func TestTickSkipsUnscoredSubmission(t *testing.T) {
 	f := &mockFetcher{
-		snaps:   []ingest.AggSnapshot{{ContestantID: "a", P99Ns: 1_000, TPS: 50_000}},
-		reports: nil,
+		snaps:   []ingest.AggSnapshot{{ContestantID: "a", SubmissionID: "s1", P99Ns: 1_000, TPS: 50_000}},
+		reports: nil, // validator hasn't scored s1 yet
 	}
 	ing, s, _ := newIngester(f)
 	if err := ing.Tick(context.Background()); err != nil {
 		t.Fatalf("Tick: %v", err)
 	}
+	if top, _ := s.Top(context.Background(), 0); len(top) != 0 {
+		t.Fatalf("unscored submission must not rank: got %+v", top)
+	}
+
+	// Validator catches up — now the submission is scored and ranks.
+	f.reports = []ingest.ValReport{{ContestantID: "a", SubmissionID: "s1", Correctness: 1.0}}
+	if err := ing.Tick(context.Background()); err != nil {
+		t.Fatalf("Tick after validator: %v", err)
+	}
 	top, _ := s.Top(context.Background(), 0)
 	if len(top) != 1 || top[0].Score < 900 {
-		t.Errorf("expected ~perfect score with no validator: %+v", top)
+		t.Errorf("expected ~perfect score once validator reports: %+v", top)
 	}
 }
 
