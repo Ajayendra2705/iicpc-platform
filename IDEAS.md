@@ -152,3 +152,18 @@ closed before tagging `v0.1.0-submission-rc2`:
   `TestSaturationCurve` 7-step RPS ramp with breakpoint detection and
   Windows-tick noise filter; report in `docs/PERFORMANCE_REPORT.md`
   §"Saturation curve". Commit `55c9535`.
+
+### Known limitations (surfaced in review, deferred)
+
+- **Per-submission state is never evicted (P4, hygiene):** validator
+  books/counters, aggregator `latest`/`history`, and the Redis hash
+  `leaderboard:scores:subs:{contestant}` grow one entry per resubmission
+  forever. Fine at demo/hackathon scale; for long-running prod add a TTL
+  or prune on submission completion.
+- **Redundant ingesters when leaderboard-svc scales out:** every replica
+  runs its own `ingest.Run` loop (no leader election), so with the prod
+  `replicas: {min: 3}` all three fetch upstream, score, and broadcast
+  every tick — 3× the work and 3× WS fan-out. Now *correct* (the
+  `UpsertSubmission` Lua script is atomic, commit pending) but wasteful;
+  a real fix is single-writer election (k8s lease) or sharding contestants
+  across replicas.
