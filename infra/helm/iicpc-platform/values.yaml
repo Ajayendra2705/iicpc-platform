@@ -76,6 +76,14 @@ services:
   aggregator:
     image: iicpc/aggregator
     port: 8084
+    # MUST stay single-replica. The aggregator holds per-contestant HDR
+    # histograms IN MEMORY, sharded by Kafka partition (events are keyed by
+    # contestant_id). leaderboard-svc and web scrape it at the ClusterIP Service
+    # (http://aggregator:8084), which load-balances to ONE replica per request —
+    # so with >1 replica each scrape would see only the contestants on that
+    # replica's partitions, and scores would be computed on partial, fluctuating
+    # data. Horizontal scaling needs a shared store (see IDEAS.md). Pinned 1/1.
+    replicas: { min: 1, max: 1 }
     env:
       - { name: HTTP_ADDR,      value: ":8084" }
       - { name: CONSUMER_KIND,  value: "kafka" }
@@ -84,6 +92,11 @@ services:
   validator:
     image: iicpc/validator
     port: 8085
+    # MUST stay single-replica for the same reason as aggregator: it holds a
+    # per-submission reference orderbook IN MEMORY, sharded by Kafka partition,
+    # and is scraped at a load-balanced ClusterIP. >1 replica → partial /validate
+    # results → wrong correctness. Pinned 1/1; scale via shared store (IDEAS.md).
+    replicas: { min: 1, max: 1 }
     env:
       - { name: HTTP_ADDR,      value: ":8085" }
       - { name: CONSUMER_KIND,  value: "kafka" }

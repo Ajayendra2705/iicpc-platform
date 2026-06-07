@@ -1,5 +1,10 @@
 {{- range $name, $svc := .Values.services }}
 {{- if not $svc.disabled }}
+{{- $defaults := $.Values.defaults }}
+{{- $min := int (include "iicpc.replicasMin" (dict "service" $svc "defaults" $defaults)) }}
+{{- /* A PDB only makes sense with >=2 replicas. On a pinned singleton,
+       minAvailable:1 would forbid evicting the sole pod and block node drains. */}}
+{{- if gt $min 1 }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -11,5 +16,6 @@ spec:
   minAvailable: 1
   selector:
     matchLabels: {{- include "iicpc.selectorLabels" (dict "Root" $ "Name" $name) | nindent 6 }}
+{{- end }}
 {{- end }}
 {{- end }}

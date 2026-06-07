@@ -167,3 +167,40 @@ closed before tagging `v0.1.0-submission-rc2`:
   `UpsertSubmission` Lua script is atomic, commit pending) but wasteful;
   a real fix is single-writer election (k8s lease) or sharding contestants
   across replicas.
+
+### Correctness audit — deferred findings (bottom-to-top review)
+
+Confirmed real but not fixed in this pass (deeper design changes or low impact);
+the high-impact items from the same audit (validator zero-checked fail-open,
+aggregator/validator multi-replica partial-data, reference-book stale heap index)
+were fixed.
+
+- **At-least-once redelivery double-counts (validator + aggregator).** Both Kafka
+  consumers commit the offset AFTER the handler runs (correct for at-least-once),
+  but on crash/rebalance a redelivered event is reprocessed: the validator
+  re-places the order on its book and re-increments total/mismatches; the
+  aggregator re-records the latency. Correct fix is idempotency — dedup by
+  (submission_id, order_id) or track committed offsets — but that's a non-trivial
+  design change. Window is small (only on crash/rebalance) and both are now single
+  replica, limiting blast radius.
+- **Telemetry loss under backpressure can desync the validator.** The ingester's
+  bounded buffer drops OrderEvents when full (observable via the dropped counter
+  and IngestAck.EventsReceived). A dropped event the validator never sees leaves
+  its reference book missing that order, which can cause FALSE correctness
+  mismatches on later fills. Mitigations: larger buffer / more ingester replicas /
+  block-with-timeout instead of drop. Capacity/policy tradeoff, not a logic bug.
+- **FIX cancel uses exchange OrderID as OrigClOrdID(41) and hardcodes Side/Qty.**
+  FIX 4.4 OrderCancelRequest should reference the original ClOrdID(11) via tag 41;
+  the bot-worker passes the exchange OrderID(37) instead, and sets Side=1/Qty=1
+  regardless of the original. Affects the LOAD GENERATOR's realism against
+  contestant engines (cancels may be rejected), not platform scoring integrity.
+  Pairs with the existing "FIX 4.4 conformance test suite" idea above.
+- **Rate limiter keys on RemoteAddr.** Behind a k8s ingress/LB, RemoteAddr is the
+  proxy IP, so all clients share one bucket. Needs trusted X-Forwarded-For
+  handling (with a trusted-proxy allowlist to avoid spoofing) to limit per real
+  client.
+- **submission-svc Postgres Get/List swallow DB errors as "not found".** A
+  transient DB error is indistinguishable from a missing row, so a real
+  submission can momentarily look absent. Fixing means widening the Store
+  interface to return errors (ripples through callers). UpdateStatus also does not
+  validate status transitions (driven internally, so low risk).

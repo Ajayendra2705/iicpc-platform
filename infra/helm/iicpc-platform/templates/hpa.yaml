@@ -1,6 +1,11 @@
 {{- range $name, $svc := .Values.services }}
 {{- if not $svc.disabled }}
 {{- $defaults := $.Values.defaults }}
+{{- $min := int (include "iicpc.replicasMin" (dict "service" $svc "defaults" $defaults)) }}
+{{- $max := int (include "iicpc.replicasMax" (dict "service" $svc "defaults" $defaults)) }}
+{{- /* No HPA for pinned singletons (min==max): nothing to autoscale, and an
+       HPA fighting a fixed replica count just adds noise. */}}
+{{- if gt $max $min }}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -27,5 +32,6 @@ spec:
       stabilizationWindowSeconds: 120
     scaleUp:
       stabilizationWindowSeconds: 0
+{{- end }}
 {{- end }}
 {{- end }}

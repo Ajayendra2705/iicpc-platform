@@ -30,10 +30,13 @@ services:
     resources:
       requests: { cpu: 500m, memory: 256Mi }
       limits:   { cpu: 2000m, memory: 1Gi }
+  # aggregator and validator MUST stay single-replica: both hold partition-
+  # sharded in-memory state that is scraped over a load-balanced ClusterIP, so
+  # >1 replica yields partial/fluctuating scoring data. See values.yaml + IDEAS.md.
   aggregator:
-    replicas: { min: 2, max: 6 }
+    replicas: { min: 1, max: 1 }
   validator:
-    replicas: { min: 2, max: 6 }
+    replicas: { min: 1, max: 1 }
   leaderboard-svc:
     replicas: { min: 3, max: 10 }
   web:
