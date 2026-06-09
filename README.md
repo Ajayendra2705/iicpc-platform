@@ -6,6 +6,11 @@
 > bots, and ranks submissions live on **latency**, **throughput**, **stability**,
 > and **correctness** — with every score traceable to real telemetry.
 
+**🔴 Live demo:** **<https://iicpc-platform.vercel.app/>** — the dashboard UI
+hosted on Vercel. It runs in **demo mode** (synthetic, drifting data) since the
+multi-service backend isn't publicly hosted; the full pipeline runs locally via
+`kind`/docker-compose (see below). Click a team to see per-contestant metrics.
+
 **Pipeline:** `Code Upload → Containerized Deployment → Distributed Load Testing → Real-Time Scoring`
 
 [Architecture blueprint](docs/ARCHITECTURE.md) ·
