@@ -93,6 +93,11 @@ h1 {
   background: var(--error);
 }
 
+.badge.demo .dot {
+  background: var(--warn);
+  animation: pulse 1.6s infinite;
+}
+
 @keyframes pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);

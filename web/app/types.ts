@@ -8,7 +8,7 @@ export type LivePayload = {
   at_unix_ms: number;
 };
 
-export type ConnStatus = "connecting" | "connected" | "polling" | "error";
+export type ConnStatus = "connecting" | "connected" | "polling" | "error" | "demo";
 
 export type SortKey = "rank" | "contestant_id" | "score";
 export type SortDir = "asc" | "desc";

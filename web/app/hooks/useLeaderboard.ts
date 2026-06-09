@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { DEMO_MODE, syntheticLeaderboard } from "../lib/demo";
 import type { ConnStatus, Entry, LivePayload } from "../types";
 
 const POLL_INTERVAL_MS = 2000;
 const WS_RECONNECT_MS = 3000;
+const DEMO_INTERVAL_MS = 1000;
 
 type Args = {
   wsUrl: string;
@@ -26,6 +28,24 @@ export function useLeaderboard({ wsUrl, restUrl }: Args) {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Demo mode: no backend exists (e.g. the Vercel-hosted frontend). Drive the
+    // table from synthetic, drifting data so it stays visibly live, and skip the
+    // WebSocket/REST machinery entirely.
+    if (DEMO_MODE) {
+      setStatus("demo");
+      const refresh = () => {
+        if (cancelled) return;
+        setEntries(syntheticLeaderboard());
+        setLastUpdate(Date.now());
+      };
+      refresh();
+      const id = setInterval(refresh, DEMO_INTERVAL_MS);
+      return () => {
+        cancelled = true;
+        clearInterval(id);
+      };
+    }
 
     const stopPolling = () => {
       if (pollRef.current) {

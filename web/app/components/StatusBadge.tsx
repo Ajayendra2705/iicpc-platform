@@ -5,6 +5,7 @@ const labels: Record<ConnStatus, string> = {
   connected: "Live (WebSocket)",
   polling: "Polling (REST fallback)",
   error: "Disconnected",
+  demo: "Demo data (no backend)",
 };
 
 export function StatusBadge({ status }: { status: ConnStatus }) {
