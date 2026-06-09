@@ -1,7 +1,13 @@
 # Demo Script — 5-minute walkthrough
 
-Recording-ready script for the **D31 demo video**. Map every scene to a
+Recording-ready script for the demo video. Map every scene to a
 timestamp, exact terminal commands, exact UI clicks, narration line.
+
+> **Organiser limit: 10 minutes max.** This script runs ~5 min, so you have
+> headroom — keep it tight rather than padding. A live public UI is also up at
+> **https://iicpc-platform.vercel.app/** if you prefer to open that in Scene 1
+> instead of localhost (note it runs in demo mode — say "hosted dashboard, demo
+> data" once and move on).
 
 Goal: prove the platform works **end-to-end without burning AWS** — the entire
 demo runs locally against SEED_DEMO + the chaos suite. Total runtime: **~5 min**.
@@ -250,9 +256,11 @@ diagram (§10) on screen.
 > **Five CI gates**: Go tests with race detector, golangci-lint, buf,
 > terraform validate, helm + kubeconform, hadolint + docker buildx.
 >
-> 175+ unit + integration tests. Three chaos scenarios.
+> 250+ unit + integration tests, including differential testing of both
+> matching engines against an independent oracle. Three chaos scenarios.
 >
-> Source: github.com/Ajayendra2705/iicpc-platform. Thanks for watching."
+> Source: github.com/Ajayendra2705/iicpc-platform — and a live dashboard at
+> iicpc-platform.vercel.app. Thanks for watching."
 
 **Cue:** at 4:55, fade out.
 
