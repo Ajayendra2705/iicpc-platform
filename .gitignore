@@ -72,6 +72,10 @@ ProblemStatement.txt
 STUDY_PLAN.md
 docs/DEMO_SCRIPT.md
 
+# Internal planning / handoff docs (local only, not for judges)
+HANDOFF.md
+PLAN.md
+
 # Claude session/skill data
 .claude/
 
