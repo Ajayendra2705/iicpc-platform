@@ -70,6 +70,7 @@ redis-data/
 IDEATION_IMPLEMENTATION_PIPELINE.md
 ProblemStatement.txt
 STUDY_PLAN.md
+docs/DEMO_SCRIPT.md
 
 # Claude session/skill data
 .claude/
