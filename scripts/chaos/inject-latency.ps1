@@ -1,8 +1,8 @@
-# Chaos #3 — inject network latency into contestant pods via Pumba.
+# Chaos #3 -- inject network latency into contestant pods via Pumba.
 # Watches P99 latency climb on the contestant detail page, then recovers.
 #
 # Requires:
-#   - Pumba-capable nodes (not gVisor — see docs/CHAOS.md "Limitations")
+#   - Pumba-capable nodes (not gVisor -- see docs/CHAOS.md "Limitations")
 #   - infra/manifests/chaos/pumba-network-delay.yaml applied or templated
 #
 # Usage:
@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path "$PSScriptRoot\..\.."
 
-Write-Host "[chaos:latency] target ns=$Namespace selector=$Selector delay=${DelayMs}ms±${JitterMs}ms duration=${DurationS}s"
+Write-Host "[chaos:latency] target ns=$Namespace selector=$Selector delay=${DelayMs}ms+/-${JitterMs}ms duration=${DurationS}s"
 
 $jobName = "pumba-netem-$([int](Get-Random -Maximum 99999))"
 
@@ -55,10 +55,10 @@ spec:
 
 $manifest | kubectl apply -f - | Out-Null
 Write-Host "[chaos:latency] Pumba Job $jobName launched"
-Write-Host "[chaos:latency] watch /contestant/<id> — P99 bar should climb to ${DelayMs}+ms"
+Write-Host "[chaos:latency] watch /contestant/<id> -- P99 bar should climb to ${DelayMs}+ms"
 
 Start-Sleep -Seconds ($DurationS + 5)
 
 Write-Host "[chaos:latency] cleanup..."
 kubectl delete job -n $Namespace $jobName --ignore-not-found | Out-Null
-Write-Host "[chaos:latency] DONE — latency should be back to baseline"
+Write-Host "[chaos:latency] DONE -- latency should be back to baseline"

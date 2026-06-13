@@ -17,13 +17,13 @@ Write-Host ""
 Write-Host "[1/3] scenario: kill-bot-pod" -ForegroundColor Yellow
 & "$here\kill-bot-pod.ps1"
 Write-Host ""
-Write-Host "pausing ${PauseS}s — observe TPS recovery on UI"
+Write-Host "pausing ${PauseS}s -- observe TPS recovery on UI"
 Start-Sleep -Seconds $PauseS
 
 Write-Host "[2/3] scenario: isolate-contestant ($ContestantID)" -ForegroundColor Yellow
 & "$here\isolate-contestant.ps1" -ContestantID $ContestantID -DurationS 30
 Write-Host ""
-Write-Host "pausing ${PauseS}s — observe score recovery"
+Write-Host "pausing ${PauseS}s -- observe score recovery"
 Start-Sleep -Seconds $PauseS
 
 Write-Host "[3/3] scenario: inject-latency" -ForegroundColor Yellow

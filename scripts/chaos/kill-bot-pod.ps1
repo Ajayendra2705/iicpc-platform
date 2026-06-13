@@ -1,4 +1,4 @@
-# Chaos #1 — kill a random bot-worker pod and verify the Deployment heals.
+# Chaos #1 -- kill a random bot-worker pod and verify the Deployment heals.
 #
 # Usage:
 #   ./kill-bot-pod.ps1                     # any pod
@@ -33,12 +33,12 @@ while ((Get-Date) -lt $deadline) {
     $running = (kubectl get pods -n $Namespace -l $Selector --field-selector status.phase=Running --no-headers 2>$null | Measure-Object -Line).Lines
     if ($running -ge $startCount) {
         $elapsed = [int]((Get-Date) - $deadline.AddSeconds(-$WaitS)).TotalSeconds
-        Write-Host "[chaos:kill-bot] PASS — replacement Running after ${elapsed}s ($running pods)"
+        Write-Host "[chaos:kill-bot] PASS -- replacement Running after ${elapsed}s ($running pods)"
         exit 0
     }
     Write-Host "[chaos:kill-bot] ...still $running/$startCount Running"
 }
 
-Write-Host "[chaos:kill-bot] FAIL — Deployment did not self-heal within ${WaitS}s" -ForegroundColor Red
+Write-Host "[chaos:kill-bot] FAIL -- Deployment did not self-heal within ${WaitS}s" -ForegroundColor Red
 kubectl get pods -n $Namespace -l $Selector
 exit 1

@@ -1,4 +1,4 @@
-# Chaos #2 — apply a deny-all NetworkPolicy to one contestant pod,
+# Chaos #2 -- apply a deny-all NetworkPolicy to one contestant pod,
 # observe the score drop, then remove the policy.
 #
 # Requires a CNI that enforces NetworkPolicy (Calico, Cilium, EKS).
@@ -45,7 +45,7 @@ spec:
 "@
 
 $manifest | kubectl apply -f - | Out-Null
-Write-Host "[chaos:isolate] policy applied — score should drop within ~10s"
+Write-Host "[chaos:isolate] policy applied -- score should drop within ~10s"
 Write-Host "[chaos:isolate] watch the leaderboard or /contestant/$ContestantID detail page"
 
 Start-Sleep -Seconds $DurationS
