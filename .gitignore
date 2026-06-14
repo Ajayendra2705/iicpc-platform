@@ -71,6 +71,7 @@ IDEATION_IMPLEMENTATION_PIPELINE.md
 ProblemStatement.txt
 STUDY_PLAN.md
 docs/DEMO_SCRIPT.md
+docs/DESIGN_DOCUMENT.tex
 
 # Internal planning / handoff docs (local only, not for judges)
 HANDOFF.md
@@ -85,3 +86,8 @@ docs/artifacts/
 
 # local build/run artifacts
 .bin/
+
+# Demo video recordings + edits (large binaries, kept local)
+Demo Video/
+*.mkv
+*.mp4

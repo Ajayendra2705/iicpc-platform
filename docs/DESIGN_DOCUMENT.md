@@ -1,13 +1,9 @@
 # IICPC Summer Trading Hackathon 2026 — Design Document
 
-> **Paste-ready for Google Docs.** Replace the three placeholders below
-> (`<TEAM NAME>`, `<YOUR NAME / ROLL NO>`), then `File → Download → PDF` (or
-> share the Doc with link access set to *Anyone with the link → Viewer*).
-
 | | |
 |---|---|
-| **Team name** | `<TEAM NAME>` |
-| **Participant(s)** | `<YOUR NAME / ROLL NO>` (solo submission) |
+| **Team name** | Ajay_2705 |
+| **Participant(s)** | Ajayendra Kumar Bansod, IIT Kharagpur (solo submission) |
 | **Project** | A distributed benchmarking & hosting platform for contestant trading engines |
 | **Repository** | https://github.com/Ajayendra2705/iicpc-platform *(public)* |
 | **Live demo (UI)** | https://iicpc-platform.vercel.app/ |
